@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Neuron</title><link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="rebinding.css"><link rel="stylesheet" href="game-profiles.css">
+  <link rel="stylesheet" href="dpi.css">
+</head>
+<body>
+  <div class="titlebar"><span>NEURON</span><span class="titlebar-note">YOUR MOUSE. YOUR RULES.</span></div>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M10 30V10L30 30V10M10 10L30 10M10 30L30 30"/><circle cx="10" cy="10" r="4"/><circle cx="30" cy="10" r="4"/><circle cx="10" cy="30" r="4"/><circle cx="30" cy="30" r="4"/></svg><span>neuron<span class="brand-dot">.</span></span></div>
+      <div class="section-label">WORKSPACE</div>
+      <nav aria-label="Main navigation">
+        <button data-nav="buttons" class="nav active"><span class="nav-icon">⌘</span> Button mapping</button>
+        <button data-nav="profiles" class="nav subnav"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="7" width="13" height="13" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h2"/><path d="M11 12h5m-5 4h3"/></svg> Profiles</button>
+        <button data-nav="dpi" class="nav"><span class="nav-icon">◎</span> DPI</button>
+        <button data-nav="macros" class="nav"><span class="nav-icon">ϟ</span> Macros <span id="macro-count" class="count">0</span></button>
+        <button data-nav="devices" class="nav"><svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="2" width="14" height="20" rx="7"/><path d="M12 2v7M5 10h14"/></svg> Devices</button>
+      </nav>
+      <div class="sidebar-divider"></div><div class="section-label">YOUR DEVICE</div>
+      <button class="device-card" data-nav="devices"><span class="device-mini">◈</span><span><strong id="device-short">Naga family</strong><small id="device-status">Looking for devices…</small></span><span class="status-dot" id="device-dot"></span></button>
+      <div class="sidebar-bottom"><div class="local-tag"><span>◈</span> Local by design</div><p>No account. No cloud.</p><div class="version">NEURON <span>v0.1</span></div></div>
+    </aside>
+    <main>
+      <header class="topbar"><div class="breadcrumb">Workspace <span>/</span> <strong id="breadcrumb">Button mapping</strong></div><div class="topbar-right"><span class="small-dot"></span> Windows desktop</div></header>
+      <header class="page-head"><div><div class="eyebrow" id="eyebrow"></div><h1 id="page-title">Button mapping<span>.</span></h1><p id="page-subtitle">A little muscle memory. A lot of possibilities.</p></div><div class="head-actions"><label class="profile-select"><span>PROFILE</span><select id="profile-select" aria-label="Current profile"></select></label><button class="button" id="save-mapping">Save profile</button><button class="button primary" id="apply">Apply to mouse <span>↗</span></button></div><div id="click-warning" class="click-warning" role="alert" aria-atomic="true" hidden><strong>Left click is rebound</strong><p id="click-warning-text"></p></div></header>
+      <div id="notice" class="notice" role="status" hidden></div>
+      <div id="content"></div>
+      <footer><span><span class="small-dot"></span> <span id="runtime-status">Profiles saved on this computer</span></span><button id="stop-macro">Stop macro <kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>Esc</kbd></button></footer>
+    </main>
+  </div>
+  <div id="toast" role="status" hidden></div>
+  <dialog id="confirm-dialog"><h2 id="confirm-title"></h2><p id="confirm-text"></p><div class="dialog-actions"><button class="button" id="confirm-cancel">Cancel</button><button class="button primary" id="confirm-ok">Continue</button></div></dialog>
+  <script src="control-layout.js"></script>
+  <script src="keyboard.js"></script>
+  <script src="button-editor.js"></script>
+  <script src="game-profiles.js"></script>
+  <script src="dpi.js"></script>
+  <script src="app.js"></script>
+</body></html>

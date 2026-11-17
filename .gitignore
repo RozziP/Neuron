@@ -1,0 +1,11 @@
+node_modules/
+.tools/
+dist/
+artifacts/
+native/NeuronBridge.exe
+*.log
+.env
+.env.*
+.dev.vars
+.dev.vars.*
+.wrangler/

@@ -1,0 +1,12 @@
+{
+  "name": "neuron-hardware-reports",
+  "main": "index.mjs",
+  "compatibility_date": "2026-11-17",
+  "workers_dev": true,
+  "vars": { "GITHUB_REPOSITORY": "RozziP/Neuron" },
+  "durable_objects": {
+    "bindings": [{ "name": "HARDWARE_ISSUES", "class_name": "HardwareIssues" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["HardwareIssues"] }],
+  "observability": { "enabled": false }
+}

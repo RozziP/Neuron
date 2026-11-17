@@ -1,0 +1,201 @@
+const fs = require('node:fs');
+const path = require('node:path');
+const assert = require('node:assert/strict');
+const delay = ms => new Promise(r => setTimeout(r,ms));
+async function run(window, app) {
+  const directory = path.dirname(app.getPath('userData')); fs.mkdirSync(directory,{recursive:true});
+  const failures=[];
+  window.webContents.on('console-message', event => { if(event.level === 'error') failures.push(event.message); });
+  const js = code => window.webContents.executeJavaScript(`(async () => (${code}))()`);
+  const waitFor = async expression => { for(let i=0;i<100;i++) { if(await js(expression)) return; await delay(50); } throw new Error(`UI timeout: ${expression}`); };
+  const click = selector => js(`document.querySelector(${JSON.stringify(selector)}).click()`);
+  const input = (selector,value) => js(`(() => { const el=document.querySelector(${JSON.stringify(selector)}); el.value=${JSON.stringify(value)}; el.dispatchEvent(new Event('input',{bubbles:true})); })()`);
+  const saveLocally = async () => { const selector=await js('document.querySelector("#save-macros") ? "#save-macros" : document.querySelector(".binding-editor") ? "#save-mapping" : "#save-profile"'); await click(selector); await waitFor('!document.querySelector("#profile-select").selectedOptions[0].textContent.includes("•") && !document.querySelector("#save-macros")?.textContent.includes("•")'); };
+  const screenshots = []; let nativeInput = false;
+  const screenshot = async (name, target) => {
+    await js(target ? `document.querySelector(${JSON.stringify(target)}).scrollIntoView({block:'center'})` : 'document.querySelector("main").scrollTop = 0');
+    await js('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+    await delay(150); const file=path.join(directory,name+'.png');
+    fs.writeFileSync(file,(await window.webContents.capturePage()).toPNG()); screenshots.push(file);
+  };
+  try {
+    await waitFor('!!document.querySelector(".mouse-key")');
+    // Exercise native SendInput only after confirming our own test window has focus.
+    const { Bridge } = require('../app/bridge.cjs');
+    const { MacroPlayer } = require('../app/macros.cjs');
+    const native = new Bridge();
+    try {
+      await js(`(()=>{const input=document.createElement('input');input.id='native-test-input';document.querySelector('#keyboard-tester').append(input);return true})()`);
+      window.focus(); await js('document.querySelector("#native-test-input").focus()');
+      let foreground = await native.call('foreground');
+      for (let attempt = 0; attempt < 10 && foreground.pid !== process.pid; attempt++) {
+        await delay(100); foreground = await native.call('foreground');
+      }
+      if (foreground.pid === process.pid) {
+        const player = new MacroPlayer(native);
+        await player.play({name:'Native smoke',repeat:1,steps:[{type:'key',value:'A'},{type:'delay',ms:30},{type:'key',value:'Shift+B'}]});
+        await waitFor('document.querySelector("#native-test-input").value === "aB"');
+        assert.equal((await native.call('keyDown',{key:16})).down,false,'Macro must release Shift.');
+        nativeInput = true;
+      } else console.log('Native input check skipped: another app has foreground focus.');
+    } finally { native.close(); await js('document.querySelector("#native-test-input")?.remove()'); }
+    assert.equal(await js('document.querySelectorAll(".bindings-overview").length'),0);
+    await click('#test-keys');
+    window.webContents.sendInputEvent({type:'keyDown',keyCode:'Shift',modifiers:['shift']});
+    window.webContents.sendInputEvent({type:'keyDown',keyCode:'A',modifiers:['shift']});
+    await waitFor('document.querySelector("[data-key-code=ShiftLeft]").classList.contains("pressed") && document.querySelector("[data-key-code=KeyA]").classList.contains("pressed")');
+    window.webContents.sendInputEvent({type:'keyUp',keyCode:'A',modifiers:['shift']});
+    await waitFor('!document.querySelector("[data-key-code=KeyA]").classList.contains("pressed")');
+    assert.equal(await js('document.querySelector("[data-key-code=ShiftLeft]").classList.contains("pressed")'),true);
+    window.webContents.sendInputEvent({type:'keyUp',keyCode:'Shift'});
+    await waitFor('!document.querySelector(".keyboard-key.pressed")');
+    await click('[data-key-code=KeyQ]');
+    assert.equal(await js('document.querySelector(".mouse-key.selected .key-label").textContent'),'Q');
+    assert.equal(await js('document.querySelectorAll(".mouse-key").length'),21);
+    assert.equal(await js('typeof window.require'),'undefined');
+    // Capture a shortcut rather than requiring users to type key names.
+    await click('#capture-binding');
+    window.webContents.sendInputEvent({type:'keyDown',keyCode:'1',modifiers:['control','shift']});
+    window.webContents.sendInputEvent({type:'keyUp',keyCode:'1'});
+    await waitFor('document.querySelector(".mouse-key.selected .key-label").textContent === "Ctrl+Shift+1"');
+    assert.equal(await js('document.querySelector(".binding-value").textContent'),'Ctrl+Shift+1');
+    assert.equal(await js('document.querySelectorAll(".modifier-choices, .apply-binding-area, #binding-preview, .secondary-binding-actions, .manual-binding, #jump-keyboard").length'),0);
+    await saveLocally();
+    assert.equal(await js('(await window.neuron.state()).profiles[0].bindings[0].value'),'Ctrl+Shift+1');
+    await click('[data-button="4"]'); assert.equal(await js('document.querySelector(".binding-summary").textContent'),'Button 5: 5');
+    await click('#capture-binding');
+    window.webContents.sendInputEvent({type:'keyDown',keyCode:'Shift',modifiers:['shift']});
+    window.webContents.sendInputEvent({type:'keyUp',keyCode:'Shift'});
+    await waitFor('document.querySelector(".mouse-key.selected .key-label").textContent === "Shift"');
+    await saveLocally();
+    await waitFor('(await window.neuron.state()).profiles[0].bindings[4].value === "Shift"');
+    await click('#capture-binding');
+    window.webContents.sendInputEvent({type:'keyDown',keyCode:'Escape'});
+    window.webContents.sendInputEvent({type:'keyUp',keyCode:'Escape'});
+    await waitFor('!document.querySelector(".capture-binding.listening")');
+    assert.equal(await js('document.querySelector(".mouse-key.selected .key-label").textContent'),'Shift');
+    await screenshot('buttons');
+    await click('#test-keys');
+    window.webContents.sendInputEvent({type:'keyDown',keyCode:'Control',modifiers:['control']});
+    window.webContents.sendInputEvent({type:'keyDown',keyCode:'Shift',modifiers:['control','shift']});
+    window.webContents.sendInputEvent({type:'keyDown',keyCode:'1',modifiers:['control','shift']});
+    await screenshot('keyboard','.live-keyboard');
+    assert.equal(await js('(()=>{const r=document.querySelector("#apply").getBoundingClientRect(),m=document.querySelector("main").getBoundingClientRect();return r.top>=m.top && r.bottom<m.bottom})()'),true);
+    for (const keyCode of ['1','Shift','Control']) window.webContents.sendInputEvent({type:'keyUp',keyCode});
+    await click('[data-nav="macros"]');
+    assert.equal(await js('document.querySelector(".head-actions").hidden'),true);
+    await click('#new-macro');
+    await input('#macro-name','Quick combo'); await click('#add-delay'); await click('#add-key');
+    await input('[data-step="2"]','Shift+2'); await saveLocally();
+    await waitFor('(await window.neuron.state()).profiles[0].macros.some(m=>m.name==="Quick combo")');
+    await screenshot('macros');
+    await click('[data-nav="buttons"]'); await click('[data-type="macro"]'); await saveLocally();
+    await waitFor('(await window.neuron.state()).profiles[0].bindings[4].type==="macro"');
+    // Primary-click gates and persistent warnings; never apply these bindings to hardware.
+    for (const side of ['left', 'right']) {
+      await click('[data-top-control="'+side+'"]');
+      assert.equal(await js('document.querySelector("#confirm-dialog").open'), true);
+      assert.equal(await js('document.activeElement.id'), 'confirm-cancel');
+      assert.equal(await js('document.querySelector(".mouse-key.selected").dataset.topControl'), undefined);
+      if (side === 'left') await screenshot('left-click-confirmation');
+      await click('#confirm-cancel');
+      assert.equal(await js('document.querySelector("[data-top-control='+side+'] .key-label").textContent'), 'Original');
+    }
+    await click('[data-top-control="right"]'); await click('#confirm-ok');
+    await waitFor('document.querySelector(".mouse-key.selected").dataset.topControl === "right"');
+    await click('[data-key-code=KeyR]');
+    assert.equal(await js('document.querySelector(".binding-value").textContent'), 'R');
+    assert.equal(await js('document.querySelector("#click-warning").hidden'), true);
+    await click('[data-type="default"]');
+    await click('[data-top-control="left"]'); await click('#confirm-ok');
+    await waitFor('document.querySelector(".mouse-key.selected").dataset.topControl === "left"');
+    await click('[data-type="disabled"]');
+    assert.equal(await js('document.querySelector("#click-warning").hidden'), false);
+    assert.match(await js('document.querySelector("#click-warning-text").textContent'), /no Left click assignment/);
+    await click('#save-mapping');
+    await waitFor('document.querySelector("#toast").classList.contains("error")');
+    assert.equal(await js('(await window.neuron.state()).profiles[0].topBindings.left.type'), 'default');
+    await screenshot('left-click-warning');
+    await js('document.querySelector("main").scrollTop = 10000');
+    await delay(100);
+    assert.equal(await js('(()=>{const r=document.querySelector("#click-warning").getBoundingClientRect(),m=document.querySelector("main").getBoundingClientRect();return r.top>=m.top && r.bottom<m.bottom})()'),true);
+    window.setSize(1080,730); await screenshot('left-click-warning-compact');
+    assert.equal(await js('document.querySelector("main").scrollWidth <= document.querySelector("main").clientWidth'),true);
+    window.setSize(1380,900);
+    await click('[data-nav="macros"]');
+    assert.equal(await js('document.querySelector("#click-warning").hidden'), false);
+    await click('[data-nav="dpi"]');
+    assert.equal(await js('document.querySelector("#click-warning").hidden'), false);
+    await click('[data-nav="buttons"]');
+    await click('[data-button="0"]'); await click('[data-type="mouse"]');
+    assert.match(await js('document.querySelector("#click-warning-text").textContent'), /use Button 1/);
+    await saveLocally();
+    const warningState = await js('window.neuron.state()');
+    window.webContents.send('state', { ...warningState, active: { profileId: warningState.profiles[0].id, profile: warningState.profiles[0], deviceId: 'simulated-active' } });
+    await waitFor('document.querySelector("#click-warning-text").textContent.includes("Active now")');
+    await click('[data-top-control="left"]'); await click('#confirm-ok');
+    await waitFor('document.querySelector(".mouse-key.selected").dataset.topControl === "left"');
+    await click('[data-type="default"]');
+    assert.match(await js('document.querySelector("#click-warning-text").textContent'), /Active now/);
+    assert.doesNotMatch(await js('document.querySelector("#click-warning-text").textContent'), /after applying/);
+    window.webContents.send('state', warningState);
+    await waitFor('document.querySelector("#click-warning").hidden');
+    await saveLocally();
+    await click('[data-top-control="left"]'); await click('#confirm-ok');
+    await waitFor('document.querySelector(".mouse-key.selected").dataset.topControl === "left"');
+    await click('[data-type="mouse"]');
+    assert.equal(await js('document.querySelector("#click-warning").hidden'), true);
+    await click('[data-type="default"]'); await saveLocally();
+    await click('[data-top-control="dpi-up"]'); await click('[data-type="key"]');
+    await click('#capture-binding');
+    window.webContents.sendInputEvent({type:'keyDown',keyCode:'Q',modifiers:['control']});
+    window.webContents.sendInputEvent({type:'keyUp',keyCode:'Q'});
+    await saveLocally();
+    await waitFor('(await window.neuron.state()).profiles[0].topBindings["dpi-up"].value === "Ctrl+Q"');
+    await click('[data-nav="profiles"]');
+    await waitFor('document.querySelectorAll("[data-game]").length > 0');
+    assert.equal(await js('document.querySelectorAll("[data-game]").length >= 2'),true);
+    await screenshot('game-library');
+    await js('document.querySelector("#game-template").selectedIndex = 1');
+    await click('#create-game-profile');
+    await waitFor('document.querySelector(".mouse-key") && (await window.neuron.state()).profiles.some(p=>p.gameId)');
+    assert.equal(await js('(await window.neuron.state()).profiles.find(p=>p.gameId).macros[0].name'),'Quick combo');
+    assert.equal(await js('(await window.neuron.state()).profiles.find(p=>p.gameId).topBindings["dpi-up"].value'),'Ctrl+Q');
+    await click('[data-nav="profiles"]');
+    await waitFor('!!document.querySelector("#edit-game-profile")');
+    assert.equal(await js('document.querySelectorAll("#auto-switch").length'),0);
+    assert.match(await js('document.querySelector(".game-switching").textContent'),/AUTOMATIC SWITCHING ACTIVE/);
+    await screenshot('profiles');
+    // Import through the real IPC/file parser, with only the native file picker stubbed.
+    const {dialog}=require('electron'), originalPicker=dialog.showOpenDialog;
+    const template=(await js('(await window.neuron.state()).profiles[0]'));
+    const importPath=path.join(directory,'standard-import.neuron.json');
+    fs.writeFileSync(importPath,JSON.stringify({version:1,profile:template}));
+    dialog.showOpenDialog=async()=>({canceled:false,filePaths:[importPath]});
+    try {
+      assert.equal(await js(`(async()=>{const library=await window.neuron.games(),s=await window.neuron.state();const g=library.games.find(g=>g.executablePath && !s.profiles.some(p=>p.gameId===g.id));const p=await window.neuron.createGame(g.id,'',103,12,g.executablePath,true);return p.gameId===g.id && p.macros[0].name==='Quick combo' && p.id!==${JSON.stringify(template.id)}})()`),true);
+    } finally {dialog.showOpenDialog=originalPicker;}
+    await click('[data-profile-tab="standard"]');
+    await waitFor('!!document.querySelector("#new-profile")');
+    await click('#new-profile');
+    await waitFor('document.querySelector("#profile-name").value.startsWith("Profile ")');
+    await input('#profile-name','Reusable MMO');await saveLocally();
+    await waitFor('(await window.neuron.state()).profiles.some(p=>p.name==="Reusable MMO" && !p.gameId)');
+    await click('[data-profile-tab="games"]');
+    window.setSize(1080,730);await screenshot('compact-games');window.setSize(1380,900);
+    await click('[data-nav="devices"]');
+    const connected = await js('(await window.neuron.state()).devices.some(d=>d.productId===103)');
+    if(connected) { await click('#inspect-device'); await waitFor('document.querySelectorAll(".readback span").length===12'); }
+    await screenshot('devices');
+    // Invalid payloads must be rejected across the actual renderer/main boundary.
+    assert.equal(await js(`(async()=>{try{await window.neuron.save({id:'invalid'});return false}catch{return true}})()`),true);
+    assert.deepEqual(failures,[]);
+    fs.writeFileSync(path.join(directory,'smoke-result.json'),JSON.stringify({ok:true,nativeInput,hardwareRead:connected,screenshots},null,2));
+    console.log('Desktop smoke test passed.');
+  } catch(error) {
+    await screenshot('failure'); fs.writeFileSync(path.join(directory,'smoke-result.json'),JSON.stringify({ok:false,error:error.stack,failures},null,2));
+    console.error(error); app.exit(1); return;
+  }
+  app.quit();
+}
+module.exports = {run};
