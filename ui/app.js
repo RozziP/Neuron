@@ -127,11 +127,27 @@ function setDraft(profile) {
   draft=structuredClone(profile);dirty=false;selected=0;selectedMacro=null;recording=false;readback=null;deviceId=state.selectedDeviceId;
 }
 async function save() { recording = false; const profile = await api.save(draft); draft = structuredClone(profile); dirty = false; render(); toast('Profile saved locally. Apply to update your mouse.'); }
-async function saveBeforeUpdate() {
+async function prepareForUpdate() {
   if (!state || busy || state.applying || switchingMouse || dpiReading) throw new Error('Wait for the current mouse operation to finish before updating.');
   recording = false; cancelBindingCapture();
+  if (dirty || macroDirty) {
+    const choice = await new Promise(resolve => {
+      const dialog = $('#update-changes-dialog');
+      dialog.returnValue = 'cancel';
+      dialog.addEventListener('close', () => resolve(dialog.returnValue), { once: true });
+      dialog.showModal();
+    });
+    if (choice !== 'save' && choice !== 'discard') return false;
+    if (choice === 'discard') {
+      macroDraft = structuredClone(state.macros); macroDirty = false; selectedMacro = null;
+      if (draft) setDraft(state.profiles.find(p => p.id === draft.id));
+      render();
+      return true;
+    }
+  }
   if (macroDirty) await saveMacros();
   if (dirty) await save();
+  return true;
 }
 async function leaveDraft() { if (!dirty) return true; return confirmAction('Discard unsaved edits?', 'Switching profiles will discard edits that have not been saved.', 'Discard edits'); }
 async function selectProfile(id) { if (id === draft.id) return; if (!(await leaveDraft())) { updateHeader(); return; } const profile=state.profiles.find(p=>p.id===id);if(!profile)throw new Error('Profile not found for this mouse.');setDraft(profile); render(); }

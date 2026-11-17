@@ -42,6 +42,7 @@
   <div id="toast" role="status" hidden></div>
   <dialog id="identity-dialog" aria-labelledby="identity-title"><div class="identity-dialog-head"><h2 id="identity-title">Device identity</h2><form method="dialog"><button class="button" autofocus>Close</button></form></div><div id="identity-details"></div></dialog>
   <dialog id="confirm-dialog"><h2 id="confirm-title"></h2><p id="confirm-text"></p><div class="dialog-actions"><button class="button" id="confirm-cancel">Cancel</button><button class="button primary" id="confirm-ok">Continue</button></div></dialog>
+  <dialog id="update-changes-dialog" aria-labelledby="update-changes-title" aria-describedby="update-changes-text"><h2 id="update-changes-title">Save changes before updating?</h2><p id="update-changes-text">You have unsaved profile or macro changes. Save or discard them to continue with the update.</p><form method="dialog" class="dialog-actions"><button class="button" id="update-cancel" value="cancel" autofocus>Cancel</button><button class="button" id="update-discard" value="discard">Discard</button><button class="button primary" id="update-save" value="save">Save and update</button></form></dialog>
   <dialog id="macro-picker" aria-labelledby="macro-picker-title"><h2 id="macro-picker-title">Choose a macro</h2><p id="macro-picker-description"></p><div id="macro-picker-list"></div><div class="dialog-actions"><button class="button" id="macro-picker-cancel">Cancel</button></div></dialog>
   <script src="control-layout.js"></script>
   <script src="keyboard.js"></script>

@@ -10,9 +10,9 @@
     const working = starting || downloading || installing;
     version.textContent = `v${state.currentVersion}`;
     check.disabled = !!(state.checking || working);
-    check.textContent = installing ? 'Restarting…' : downloading ? `Downloading ${state.progress}%` : starting ? 'Saving…'
+    check.textContent = installing ? 'Restarting…' : downloading ? `Downloading ${state.progress}%` : starting ? 'Preparing update…'
       : state.checking ? 'Checking…' : state.release ? `Update to v${state.release.version}` : 'Check for updates';
-    check.title = state.release ? 'Save your edits, download the update, and restart Neuron automatically.' : 'Check for updates.';
+    check.title = state.release ? 'Review unsaved changes, download the update, and restart Neuron automatically.' : 'Check for updates.';
     status.textContent = installing ? 'Restoring mouse mappings and installing the update…'
       : downloading ? 'Downloading and verifying the installer…'
       : state.installError || state.error || (state.checking ? 'Checking for updates…' : state.release
@@ -27,7 +27,7 @@
     const updating = !!latest.release;
     starting = updating; render(latest);
     try {
-      if (updating) { await saveBeforeUpdate(); await api.installUpdate(); }
+      if (updating) { if (await prepareForUpdate()) await api.installUpdate(); }
       else render(await api.checkUpdates());
     } catch (error) { latest = { ...latest, phase: 'idle', error: error.message }; }
     finally { starting = false; render(latest); }
