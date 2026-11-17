@@ -39,11 +39,11 @@ The system tray icon displays the battery percentage and a small charge bar for 
 
 ## DPI
 
-Open **DPI** to read the selected mouse, then use the sliders, exact inputs, or quick picks and click **Apply DPI**. Trinity supports 100–16,000 DPI; Naga V2 Pro supports 100–30,000 over wired USB, its receiver, or Mouse Dock Pro with V2 Pro identified. Unlink the axes for independent horizontal and vertical sensitivity. **Read DPI** refreshes the reading without changing the mouse. Apply stays disabled until a read succeeds.
+Open **DPI** to read the selected mouse, then use the sliders, exact inputs, or quick picks and click **Apply DPI**. All supported models start at 100 DPI: Trinity reaches 16,000; Naga X 18,000; Naga Pro and Left-Handed Edition 2020 20,000; V2 Pro and V2 HyperSpeed 30,000; V3 Pro 50,000. Use wired USB or the model's receiver. Mouse Dock Pro supports identified V2/V3 Pro mice only. Unlink the axes for independent horizontal and vertical sensitivity. **Read DPI** refreshes the reading without changing the mouse. Apply stays disabled until a read succeeds.
 
 Sensitivity is mouse-wide. Saving, applying, importing, or switching button profiles does not change it. Neuron reads the current mouse sensitivity when opening DPI; it does not store DPI in profiles. Leaving a game or quitting Neuron restores button mappings without changing sensitivity. **Restore original** on Devices explicitly restores both mappings and the first backed-up DPI.
 
-This controls current sensitivity only; the mouse's DPI buttons still cycle its existing onboard stages. It does not rewrite those stages or guarantee persistence after unplugging the mouse. V2 Pro support is experimental and tested with simulated transports; physical validation on the reported mouse and dock remains pending. Bluetooth and other mouse models do not have DPI configuration support yet.
+This adjusts sensitivity without editing the DPI-stage table; the mouse's DPI buttons still cycle its existing onboard stages. Pro, X, Left-Handed 2020, and V2 HyperSpeed use their documented stored sensitivity write, followed by a current-DPI readback. Neuron does not guarantee persistence after unplugging the mouse. Expanded support is experimental and tested with simulated transports; physical validation on these mice and the dock remains pending. Bluetooth and other mouse models do not have DPI configuration support yet.
 
 `npm run smoke:dpi` checks the Electron page, validation, profile independence, reload, disconnection, and compact layout with isolated test profiles and a simulated DPI device. It does not write to physical hardware.
 

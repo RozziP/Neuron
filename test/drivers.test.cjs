@@ -102,7 +102,7 @@ for(const pid of [0x008f,0x0090,0x00a7,0x00a8,0x00b4,0x00e7,0x00e8,0x00a4]) {
     await f.h.restore(d.id); for(const block of f.memory.values())assert.deepEqual(block,f.original);
     const game={...profile,executable:'Game.exe'};
     assert.equal(automaticTarget([game],[d],null,{executable:'Game.exe'},null).deviceId,d.id);
-    if (![0x00a7,0x00a8,0x00a4].includes(pid)) await assert.rejects(f.h.applyDpi(d.id,{x:800,y:800}),/Trinity/);
+
   });
 }
 
@@ -129,6 +129,47 @@ for(const pid of [0x00a7,0x00a8,0x00a4]) {
     await assert.rejects(f.h.apply(d.id,p),/Previous mappings restored/);
     assert.deepEqual(f.memory.get('0:109'),nativeFront);assert.deepEqual(f.memory.get('0:96'),nativeRear);
     assert.equal(f.requests.some(r=>r[6]===4),false,'Button remapping must not change DPI.');
+  });
+}
+
+for(const pid of [0x00e7,0x00e8,0x00a4]) {
+  test(`V3 Pro body buttons restore native actions and roll back via ${pid.toString(16)}`,async t=>{
+    const f=fixture(t,pid,pid===0x00a4?0x00e8:null),[d]=await f.h.devices();
+    const originals=new Map([[11,[6,1,1,0,0,0,0]],[12,[6,1,2,0,0,0,0]],
+      [57,[11,1,1,0,0,0,0]],[106,[0x12,1,1,0,0,0,0]],[128,[0,1,0,0,0,0,0]],[14,[7,1,1,0,0,0,0]]]);
+    for(const [source,raw] of originals)f.memory.set(`0:${source}`,raw);
+    const p=newProfile('V3 body buttons',d.modelId??pid,6);
+    for(const id of ['dpi-up','dpi-down','pinky','scroll-front','scroll-rear','profile-cycle'])p.topBindings[id]={type:'key',value:'Q'};
+    await f.h.apply(d.id,p);
+    for(const source of originals.keys())assert.deepEqual(f.memory.get(`0:${source}`),[2,2,0,20,0,0,0]);
+    await f.h.restore(d.id);
+    for(const [source,raw] of originals)assert.deepEqual(f.memory.get(`0:${source}`),raw);
+    p.topBindings['scroll-rear']={type:'key',value:'A'};f.reject(128);
+    await assert.rejects(f.h.apply(d.id,p),/Previous mappings restored/);
+    for(const [source,raw] of originals)assert.deepEqual(f.memory.get(`0:${source}`),raw);
+    assert.equal(f.requests.some(r=>r[6]===4),false,'Button remapping must not change DPI.');
+  });
+}
+
+for(const [pid,controls] of [[0x008f,{'dpi-up':12,'dpi-down':11,'profile-cycle':14}],
+  [0x0090,{'dpi-up':12,'dpi-down':11,'profile-cycle':14}],
+  [0x008d,{'dpi-up':12,'dpi-down':11}],[0x0096,{'dpi-cycle':96}],
+  [0x00b4,{'dpi-up':11,'dpi-down':12}]]) {
+  test(`modern Naga ${pid.toString(16)} body buttons write and restore every storage bank`,async t=>{
+    const f=fixture(t,pid),[d]=await f.h.devices(),p=newProfile('Body controls',pid,12);
+    const slots=pid===0x00b4?[1,0]:[0],native=[6,1,6,0,0,0,0];
+    for(const [id,source] of Object.entries(controls)) {
+      p.topBindings[id]={type:'key',value:'Q'};
+      for(const slot of slots)f.memory.set(`${slot}:${source}`,native);
+    }
+    await f.h.apply(d.id,p);
+    for(const source of Object.values(controls)) for(const slot of slots)assert.deepEqual(f.memory.get(`${slot}:${source}`),[2,2,0,20,0,0,0]);
+    await f.h.restore(d.id);
+    for(const source of Object.values(controls)) for(const slot of slots)assert.deepEqual(f.memory.get(`${slot}:${source}`),native);
+    const last=Object.keys(controls).at(-1);p.topBindings[last]={type:'key',value:'A'};f.reject(controls[last]);
+    await assert.rejects(f.h.apply(d.id,p),/Previous mappings restored/);
+    for(const source of Object.values(controls)) for(const slot of slots)assert.deepEqual(f.memory.get(`${slot}:${source}`),native);
+    assert.equal(f.requests.some(r=>r[6]===4),false);
   });
 }
 

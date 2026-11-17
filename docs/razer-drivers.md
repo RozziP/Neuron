@@ -102,8 +102,10 @@ identities, using a read-only pairing query when available or the saved user
 choice. Accessory passthrough remains experimental. Choosing another model
 does not enable an arbitrary transport. Bluetooth configuration, Hypershift
 layers, raw input streaming and onboarding every shared dongle are outside
-this expansion. DPI supports Trinity and Naga V2 Pro on wired USB, its receiver,
-or an identified V2 Pro through Dock Pro; battery support is separate.
+this expansion. DPI supports Trinity (16K), X (18K), Pro and Left-Handed 2020 (20K),
+V2 HyperSpeed and V2 Pro (30K), and V3 Pro (50K) on wired USB or their receivers,
+plus an identified V2/V3 Pro through Dock Pro; battery support is separate.
+V3 dock DPI remains an experimental extension pending physical validation.
 New wireless identities without a battery adapter report unavailable.
 
 ## Validation

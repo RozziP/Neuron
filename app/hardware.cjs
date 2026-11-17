@@ -11,7 +11,7 @@ const { packet, decode, bindingPacket, bindingFromReply, functionBlock } = requi
 const { parseChord } = require('./keys.cjs');
 const { atomicWrite, validateProfile } = require('./store.cjs');
 const { topControls, mouseActions, macroTriggers } = require('./controls.cjs');
-const { dpiCapabilities, validateDpi, dpiPacket, dpiFromReply, sameDpi } = require('./dpi.cjs');
+const { dpiCapabilities, dpiWriteStorage, validateDpi, dpiPacket, dpiFromReply, sameDpi } = require('./dpi.cjs');
 const { batteryPacket, batteryFromReply } = require('./battery.cjs');
 const redragon = require('./redragon.cjs');
 const same = (a, b) => JSON.stringify(functionBlock(a)) === JSON.stringify(functionBlock(b));
@@ -124,7 +124,7 @@ class Hardware {
   }
   async readDpi(device) {
     const limits = dpiCapabilities(device);
-    if (!limits) throw new Error('DPI control is available for Naga Trinity and Naga V2 Pro on supported USB connections.');
+    if (!limits) throw new Error('DPI control is available for supported Naga models on supported USB connections.');
     return dpiFromReply(await this.exchange(device.path, dpiPacket()), limits);
   }
   async inspectDpi(id) {
@@ -133,13 +133,13 @@ class Hardware {
   }
   async writeDpi(device, dpi) {
     const limits = dpiCapabilities(device), value = validateDpi(dpi, limits);
-    await this.exchange(device.path, dpiPacket(value, limits));
+    await this.exchange(device.path, dpiPacket(value, limits, dpiWriteStorage(device)));
     if (!sameDpi(await this.readDpi(device), value)) throw new Error('DPI readback does not match the requested sensitivity.');
   }
   async applyDpi(id, input) {
     return this.serialize(async () => {
       const device = await this.target(id);
-      if (!dpiCapabilities(device)) throw new Error('DPI control is available for Naga Trinity and Naga V2 Pro on supported USB connections.');
+      if (!dpiCapabilities(device)) throw new Error('DPI control is available for supported Naga models on supported USB connections.');
       const value = validateDpi(input, dpiCapabilities(device));
       const before = await this.readDpi(device);
       const file = this.backupFile(device);

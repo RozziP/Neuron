@@ -61,7 +61,8 @@ add([0x00ea,0x00eb,0x00ec],2,{...tilt,'thumb-paddle':57,'side-front':128,...prof
 // or a two-button panel from the twelve-button grid.
 add([0x0015,0x001f,0x002e],12,{'dpi-up':11,'dpi-down':12});
 add([0x0036,0x0041],6,{'dpi-up':11,'dpi-down':12});
-add([0x003e,0x003f,0x0040,0x0053,0x008d],12,{...tilt,...dpiPair});
+add([0x003e,0x003f,0x0040,0x0053],12,{...tilt,...dpiPair});
+add([0x008d],12,{...tilt,...dpiPair},{fixed:[{id:'profile-cycle',name:'Underside profile button',note:'Hardware profile selection; remapping is not established for this model.'}]});
 add([0x0050],7,{...tilt,...dpiPair});
 add([0x0096],12,dpiCycle);
 add([0x0067],12,{...tilt,'dpi-up':11,'dpi-down':12},{plates:[2,7,12],validation:'locally-tested',slots:[2,1],readSlot:1});
