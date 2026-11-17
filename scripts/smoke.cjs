@@ -10,6 +10,7 @@ async function run(window, app) {
   const waitFor = async expression => { for(let i=0;i<100;i++) { if(await js(expression)) return; await delay(50); } throw new Error(`UI timeout: ${expression}`); };
   const click = selector => js(`document.querySelector(${JSON.stringify(selector)}).click()`);
   const input = (selector,value) => js(`(() => { const el=document.querySelector(${JSON.stringify(selector)}); el.value=${JSON.stringify(value)}; el.dispatchEvent(new Event('input',{bubbles:true})); })()`);
+  const change = (selector,value) => js(`(() => { const el=document.querySelector(${JSON.stringify(selector)}); el.value=${JSON.stringify(value)}; el.dispatchEvent(new Event('change',{bubbles:true})); })()`);
   const saveLocally = async () => { const selector=await js('document.querySelector("#save-macros") ? "#save-macros" : document.querySelector(".binding-editor") ? "#save-mapping" : "#save-profile"'); await click(selector); await waitFor('!document.querySelector("#profile-select").selectedOptions[0].textContent.includes("•") && !document.querySelector("#save-macros")?.textContent.includes("•")'); };
   const screenshots = []; let nativeInput = false;
   const screenshot = async (name, target) => {
@@ -82,15 +83,56 @@ async function run(window, app) {
     await screenshot('keyboard','.live-keyboard');
     assert.equal(await js('(()=>{const r=document.querySelector("#apply").getBoundingClientRect(),m=document.querySelector("main").getBoundingClientRect();return r.top>=m.top && r.bottom<m.bottom})()'),true);
     for (const keyCode of ['1','Shift','Control']) window.webContents.sendInputEvent({type:'keyUp',keyCode});
+    // An empty library opens the picker without creating a macro or changing the binding.
+    await click('[data-type="macro"]');
+    assert.equal(await js('document.querySelector("#macro-picker").open'),true);
+    assert.match(await js('document.querySelector("#macro-picker-list").textContent'),/No saved macros/);
+    assert.equal(await js('document.querySelector("#breadcrumb").textContent'),'Button mapping');
+    await click('#macro-picker-cancel');
+    assert.equal(await js('document.querySelector(".binding-value").textContent'),'Shift');
     await click('[data-nav="macros"]');
     assert.equal(await js('document.querySelector(".head-actions").hidden'),true);
     await click('#new-macro');
     await input('#macro-name','Quick combo'); await click('#add-delay'); await click('#add-key');
+    assert.equal(await js('document.querySelector("#macro-repeat-field").hidden'),true);
+    for (const mode of ['count','toggle','held','once']) {
+      await change('#macro-repeat-mode',mode);
+      assert.equal(await js('document.querySelector("#macro-repeat-field").hidden'),mode!=='count');
+      if(mode==='count')await input('#macro-repeat',25);
+      await saveLocally();
+      assert.equal(await js('(await window.neuron.state()).macros[0].repeatMode'),mode);
+      if(mode==='count')assert.equal(await js('(await window.neuron.state()).macros[0].repeat'),25);
+    }
     await input('[data-step="2"]','Shift+2'); await saveLocally();
     await waitFor('(await window.neuron.state()).profiles[0].macros.some(m=>m.name==="Quick combo")');
     await screenshot('macros');
-    await click('[data-nav="buttons"]'); await click('[data-type="macro"]'); await saveLocally();
+    await click('#new-macro'); await input('#macro-name','Held combo');
+    await change('#macro-repeat-mode','held'); await saveLocally();
+    window.setSize(1080,730); await screenshot('macros-held-compact');
+    assert.equal(await js('document.querySelector("main").scrollWidth <= document.querySelector("main").clientWidth'),true);
+    window.setSize(1380,900);
+    await click('[data-nav="buttons"]'); await click('[data-type="macro"]');
+    assert.equal(await js('document.querySelectorAll("[data-bind-macro]").length'),2);
+    await screenshot('macro-picker');
+    await click('#macro-picker-cancel');
+    assert.equal(await js('document.querySelector(".binding-value").textContent'),'Shift');
+    await click('[data-type="macro"]'); await click('[data-bind-macro]'); await saveLocally();
     await waitFor('(await window.neuron.state()).profiles[0].bindings[4].type==="macro"');
+    await click('#binding-macro');
+    window.webContents.sendInputEvent({type:'keyDown',keyCode:'Escape'});
+    window.webContents.sendInputEvent({type:'keyUp',keyCode:'Escape'});
+    await waitFor('!document.querySelector("#macro-picker").open');
+    assert.equal(await js('document.querySelector(".binding-value").textContent'),'Quick combo');
+    await click('[data-top-control="middle"]'); await click('[data-type="macro"]');
+    await click('[data-bind-macro]:last-child'); await saveLocally();
+    assert.equal(await js('document.querySelector(".binding-value").textContent'),'Held combo');
+    // Reload verifies both mode and side/top assignments survive persistence.
+    window.webContents.reload();
+    await waitFor('!!document.querySelector(".mouse-key")');
+    assert.equal(await js('(await window.neuron.state()).macros[1].repeatMode'),'held');
+    await click('[data-top-control="middle"]');
+    assert.equal(await js('document.querySelector(".binding-value").textContent'),'Held combo');
+    await click('[data-button="4"]');
     // Primary-click gates and persistent warnings; never apply these bindings to hardware.
     for (const side of ['left', 'right']) {
       await click('[data-top-control="'+side+'"]');
@@ -189,6 +231,28 @@ async function run(window, app) {
     await screenshot('devices');
     // Invalid payloads must be rejected across the actual renderer/main boundary.
     assert.equal(await js(`(async()=>{try{await window.neuron.save({id:'invalid'});return false}catch{return true}})()`),true);
+    // A launch from Start must recover a destroyed window in the running process.
+    const { BrowserWindow } = require('electron');
+    const closedHandlers = app.listeners('window-all-closed'), keepAlive = () => {};
+    app.removeAllListeners('window-all-closed'); app.on('window-all-closed',keepAlive);
+    try {
+      window.destroy();
+      app.emit('second-instance', {}, [], directory);
+      app.emit('second-instance', {}, [], directory);
+      for (let i=0;i<100;i++) {
+        const replacement = BrowserWindow.getAllWindows().find(w=>!w.isDestroyed());
+        if (replacement) { window=replacement; break; }
+        await delay(50);
+      }
+      assert.equal(window.isDestroyed(),false,'Launching again should recreate a destroyed window.');
+      await waitFor('!!document.querySelector(".mouse-key")');
+      assert.equal(BrowserWindow.getAllWindows().length,1);
+      assert.equal(await js('(await window.neuron.state()).macros[1].repeatMode'),'held');
+      await screenshot('reopened-window');
+    } finally {
+      app.removeListener('window-all-closed',keepAlive);
+      for (const handler of closedHandlers) app.on('window-all-closed',handler);
+    }
     assert.deepEqual(failures,[]);
     fs.writeFileSync(path.join(directory,'smoke-result.json'),JSON.stringify({ok:true,nativeInput,hardwareRead:connected,screenshots},null,2));
     console.log('Desktop smoke test passed.');

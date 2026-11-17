@@ -11,6 +11,7 @@ function decode(raw, request) {
   if (report[6] !== request[6] || report[7] !== request[7] || report[1] !== request[1]) throw new Error('Unrelated HID response. Close Synapse and retry.');
   if (report[0] !== 2) throw new Error(`Mouse rejected command (status ${report[0]}).`);
   if (report[5] > 80) throw new Error('Invalid HID response payload length.');
+  if (request[6] === 0x07 && [0x80, 0x84].includes(request[7]) && report[5] < 2) throw new Error('Incomplete battery response.');
   return report.subarray(8, 88);
 }
 function bindingPacket(slot, source, action) { return packet(0x0c, [slot, source, 0, action.type, action.params.length, ...action.params]); }

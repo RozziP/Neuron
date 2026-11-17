@@ -1,22 +1,37 @@
 {
   "name": "neuron",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "A local-first desktop control center for Razer Naga mice",
   "main": "app/main.cjs",
+  "author": "RozziP",
+  "repository": "https://github.com/RozziP/Neuron.git",
   "scripts": {
     "native": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-native.ps1",
+    "release:build": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-native.ps1 && electron-builder --win nsis --x64 --publish never",
     "start": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-native.ps1 && electron .",
     "test": "node --test test/*.test.cjs",
     "smoke": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-native.ps1 && electron . --smoke-test",
     "smoke:dpi": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-native.ps1 && electron . --dpi-smoke-test",
     "pack": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-native.ps1 && electron-packager . Neuron --platform=win32 --arch=x64 --out=dist --overwrite --asar.unpack=\"**/*.{node,exe,ps1}\" --ignore=\"^/(\\.tools|test|artifacts|dist|docs|worker)\""
   },
+  "build": {
+    "appId": "com.rozzip.neuron",
+    "productName": "Neuron",
+    "directories": { "output": "dist/release" },
+    "files": ["app/**/*", "ui/**/*", "native/NeuronBridge.exe", "scripts/game-registry.ps1", "scripts/smoke.cjs", "scripts/dpi-smoke.cjs", "README.md", "THIRD_PARTY.md", "package.json"],
+    "asarUnpack": ["**/*.node", "**/*.exe", "**/*.ps1"],
+    "npmRebuild": false,
+    "publish": null,
+    "win": { "target": "nsis", "artifactName": "Neuron-Setup-${version}-${arch}.${ext}" },
+    "nsis": { "oneClick": false, "perMachine": false, "allowElevation": false, "allowToChangeInstallationDirectory": true, "runAfterFinish": false, "deleteAppDataOnUninstall": false }
+  },
   "dependencies": {
     "node-hid": "3.3.0"
   },
   "devDependencies": {
     "@electron/packager": "20.3.0",
-    "electron": "45.3.3"
+    "electron": "45.3.3",
+    "electron-builder": "26.18.0"
   }
 }

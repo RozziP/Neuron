@@ -26,7 +26,7 @@ function renderButtons() {
           <button id="capture-binding" class="capture-binding ${capturingBinding ? 'listening' : ''}"><span>${capturingBinding ? 'Listening… press your key or shortcut' : 'Click here, then press a key'}</span><small>${capturingBinding ? 'Release a modifier to use it alone. Escape cancels.' : 'For example: Q, Space, or Ctrl + 1'}</small></button>
           ${capturingBinding ? '<button class="text-button" id="cancel-capture">Cancel recording</button>' : ''}
         ` : b.type === 'default' ? '<p class="help original-help">Keep this control’s original mouse function. Choose Key / modifier, Mouse, or Macro above to change it. Returning to Original restores its backed-up setting.</p>' : b.type === 'mouse' ? `<label class="field"><span>MOUSE FUNCTION</span><select id="binding-mouse">${Object.entries(state.mouseActions).map(([value,a])=>`<option value="${value}" ${b.value===value?'selected':''}>${esc(a.name)}</option>`).join('')}</select></label>` : b.type === 'macro' ? `
-          <label class="field"><span>MACRO TO RUN</span><select id="binding-macro">${draft.macros.map(m => `<option value="${esc(m.id)}" ${m.id === b.value ? 'selected' : ''}>${esc(m.name)}</option>`).join('')}</select></label><p class="help">Runs when you use ${esc(selectionName())}. Keep Neuron open or in the tray.</p>
+          <button class="button" id="binding-macro">Choose macro…</button><p class="help">${esc(macroPlaybackLabel(draft.macros.find(m => m.id === b.value) || {}))}. Keep Neuron open or in the tray.</p>
         ` : '<p class="help">This button will send no input after you apply the profile.</p>'}
       </section>
     </div>
@@ -34,7 +34,7 @@ function renderButtons() {
   $('#plate').onchange = e => { cancelBindingCapture(); draft.plate = Number(e.target.value); draft.bindings = Array.from({length:draft.plate},(_,i) => draft.bindings[i] || {type:'key',value:defaults[i]}); selected = Math.min(selected,draft.plate-1); markDirty(); render(); };
   if ($('#capture-binding')) $('#capture-binding').onclick = () => { capturingBinding = true; capturedModifiers.clear(); renderButtons(); $('#capture-binding').focus(); };
   if ($('#cancel-capture')) $('#cancel-capture').onclick = cancelBindingCapture;
-  if ($('#binding-macro')) $('#binding-macro').onchange = e => { selectedControl().binding.value = e.target.value; markDirty(); renderButtons(); };
+  if ($('#binding-macro')) $('#binding-macro').onclick = openMacroPicker;
   if ($('#binding-mouse')) $('#binding-mouse').onchange = e => { selectedControl().binding.value = e.target.value; markDirty(); renderButtons(); };
   wireKeyboard();
 }
@@ -59,6 +59,21 @@ document.addEventListener('keyup', event => {
   }
 }, true);
 window.addEventListener('blur', cancelBindingCapture);
+
+function openMacroPicker() {
+  const dialog = $('#macro-picker'), binding = selectedControl().binding;
+  $('#macro-picker-description').textContent = `Assign a saved macro to ${selectionName()}.`;
+  $('#macro-picker-list').innerHTML = state.macros.length ? state.macros.map(m => `<button class="macro-list-item ${binding.type === 'macro' && binding.value === m.id ? 'active' : ''}" data-bind-macro="${esc(m.id)}"><strong>${esc(m.name)}</strong><small>${m.steps.length} steps · ${esc(macroPlaybackLabel(m))}</small></button>`).join('') : '<p class="help">No saved macros yet. Create and save a macro in the Macros tab, then choose it here.</p>';
+  $('#macro-picker-list').onclick = event => {
+    const item = event.target.closest('[data-bind-macro]');
+    if (!item || !state.macros.some(m => m.id === item.dataset.bindMacro)) return;
+    setSelectedBinding({type:'macro',value:item.dataset.bindMacro});
+    dialog.close(); markDirty(); renderButtons();
+    $('#binding-macro').focus();
+  };
+  $('#macro-picker-cancel').onclick = () => dialog.close();
+  dialog.showModal();
+}
 document.addEventListener('click', event => {
   if (capturingBinding && event.target.closest('[data-nav], [data-button], [data-type], #apply')) cancelBindingCapture();
 }, true);

@@ -28,7 +28,7 @@ test('shortcuts map to both HID usages and Windows virtual keys', () => {
   assert.throws(() => parseChord('Hyper+A'));
   assert.throws(() => parseChord('Ctrl+'));
 });
-test('profile validation rejects invalid macros, unresolved references and long playback', () => {
+test('profile validation rejects invalid macros and unresolved references', () => {
   const p = newProfile();
   p.macros = [{id:'macro-1',name:'Test',repeat:2,steps:[{type:'key',value:'Ctrl+C'},{type:'delay',ms:100}]}];
   p.bindings[0] = {type:'macro',value:'macro-1'};
@@ -36,7 +36,7 @@ test('profile validation rejects invalid macros, unresolved references and long 
   assert.equal(actionsFor(p)[0].action.params[1],0x68);
   const badRef = structuredClone(p); badRef.bindings[0].value = 'missing'; assert.throws(() => validateProfile(badRef));
   p.macros[0].steps[0].value = 'F13'; assert.throws(() => validateProfile(p),/reserved/);
-  p.macros[0].steps = [{type:'delay',ms:10000}]; p.macros[0].repeat = 20; assert.throws(() => validateProfile(p),/two minutes/);
+  p.macros[0].steps = [{type:'delay',ms:10000}]; p.macros[0].repeat = 50; assert.equal(validateProfile(p).macros[0].repeat,50);
   p.model = 0x0096; assert.throws(() => actionsFor(p));
 });
 test('standalone modifiers and modifier-only chords compile to held HID modifiers', () => {

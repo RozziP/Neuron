@@ -4,6 +4,8 @@ A Windows desktop control center for Razer Naga mice. The first milestone is but
 
 ## Run
 
+Download the Windows x64 installer from [the latest release](https://github.com/RozziP/Neuron/releases/latest), run `Neuron-Setup-0.1.2-x64.exe`, and launch Neuron from the Start menu. The installer includes the app runtime and native helper; Node.js and administrator access are not required. This release is unsigned, so Windows may display an unknown-publisher warning.
+
 Open `dist/Neuron-win32-x64/Neuron.exe` for the local portable build. Keep the executable with the rest of its folder. No Node installation or administrator access is needed for that build.
 
 For the development checkout, double-click `Start Neuron.cmd` after installing dependencies, or use:
@@ -22,10 +24,12 @@ Development requires Node.js 22.12+ and Windows x64 with .NET Framework 4.x. The
 3. Click a side or top mouse control, then **Click here, then press a key** to capture a shortcut. To use a modifier by itself, press and release it during capture. Modifier-only combinations such as `Ctrl+Shift` are also supported. Escape cancels capture; you can assign Escape by clicking it on the virtual keyboard .
 4. Click **Save & apply to mouse** at the top to save the profile, write its button mappings, and verify readback. Save profile in the sticky header saves locally without changing your mouse. Top controls start as Original and remain unchanged until you rebind them. Returning to Original restores the saved mapping. Keep Left click assigned somewhere. Sensitivity is controlled separately in the DPI tab. Lighting is unchanged.
 5. **Test on virtual keyboard** opens a keyboard that highlights keys while held and clears them on release. Press your physical keyboard or mapped mouse buttons with Neuron focused. Clicking a virtual key assigns it to the currently selected mouse button. The virtual keyboard replaces the old bindings overview.
-5. Macros has its own shared library and Save macros action, without a profile selector. To create a macro, add key taps and millisecond delays or record keys while Neuron has focus. Recording appends to the sequence and stops on Escape or loss of focus. Assign it from Button mapping → Macro. A macro has a fixed repeat count, at most 100 steps and two minutes of total playback. Overlapping macro triggers are ignored.
+5. Macros has its own shared library and Save macros action, without a profile selector. To create a macro, add key taps and millisecond delays or record keys while Neuron has focus. Recording appends to the sequence and stops on Escape or loss of focus. Choose **Do once**, **Do X times**, **Toggle (repeat indefinitely)**, or **Continuous while held**. Toggle starts on a press and stops on the next press of the same bound button; Continuous while held stops when you release it, including during a delay. Save macros, then use **Button mapping → Macro** to open the list of saved macros and choose one. Cancel leaves the current binding unchanged; an empty library stays in the picker. Each sequence supports up to 100 steps. Existing repeat counts are preserved. Other macro triggers are ignored while playback is running.
 6. `Ctrl+Alt+Escape`, the footer button, and the tray menu stop a running macro. Closing the window keeps Neuron in the tray. **Restore mouse and quit** restores the original hardware bindings before exiting.
 
 Macro buttons use F13–F24 on the mouse, with corresponding global shortcuts reserved while that profile is applied. Other keyboards emitting those same F-keys can also trigger the macro. Playback uses Windows SendInput and requires Neuron to stay running; macros are not stored onboard. Key steps are taps, not held-key sequences. Physical key positions follow the USB/US keyboard map; layout-dependent symbols may differ on other keyboard layouts. Windows does not allow a normal-privilege app to inject input into an elevated app.
+
+The system tray icon displays the battery percentage and a small charge bar for Naga Epic, Epic Chroma, Pro, V2 Pro, and V2 HyperSpeed over supported USB/receiver connections. It refreshes every 30 seconds, turns orange at 20% or below, and blue while charging. Hover or right-click for the device name and battery/charging status. With multiple wireless mice, the icon prefers the active mouse, then the first detected wireless mouse; the menu lists every device. Wired-only models such as Trinity show “Wired · no battery.” Failed reads show “Battery unavailable” instead of an old percentage. Battery reads follow OpenRazer's protocol and still need physical verification on wireless models; they do not enable profile writes on those models.
 
 ## DPI
 
@@ -83,6 +87,7 @@ The reporting service is live on Cloudflare Workers Free. Reports are also saved
 npm test            # protocol validation, profiles, rollback and macro cancellation
 npm run smoke      # real Electron UI, native input into its own window, HID reads
 npm run pack       # local Windows x64 folder, not a published release
+npm run release:build # Windows x64 installer in dist/release
 node scripts/probe.cjs # read-only Trinity diagnostics
 ```
 

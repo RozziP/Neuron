@@ -6,8 +6,11 @@ const { randomUUID } = require('node:crypto');
 const { Bridge } = require('./bridge.cjs');
 const { Store, newProfile, validateProfile } = require('./store.cjs');
 const { Hardware } = require('./hardware.cjs');
+const { BatteryMonitor } = require('./battery.cjs');
+const { trayState, trayPixels } = require('./tray.cjs');
 const { catalog } = require('./catalog.cjs');
 const { MacroPlayer } = require('./macros.cjs');
+const { createWindowOpener } = require('./window.cjs');
 const { topControls, mouseActions, macroTriggers } = require('./controls.cjs');
 const { GameLibrary, createGameProfile, automaticTarget } = require('./games.cjs');
 const { HardwareReporter } = require('./hardware-reporting.cjs');
@@ -23,23 +26,56 @@ app.setName('Neuron');
 const ownsInstance = app.requestSingleInstanceLock();
 if (!ownsInstance) app.exit(0);
 let window, tray, bridge, store, hardware, player, timer, library, reporter;
+let batteries, lastTrayState = '';
+let readyToOpen = false;
 let devices = [], active = null, applying = false, auto = true, quitting = false, fallbackId = null, lastError = '', autoCandidate = '', autoSince = 0, retryAfter = 0;
 const registered = new Set();
-const heldTriggers = new Set();
+const heldTriggers = new Map();
 const rendererURL = pathToFileURL(path.join(__dirname, '../ui/index.html')).href;
+const showWindow = createWindowOpener({ getWindow: () => window, createWindow: createMainWindow, canOpen: () => readyToOpen && !quitting });
+function openWindow() { void showWindow().catch(error => { console.error(error); dialog.showErrorBox('Neuron could not open', error.message); }); }
+async function createMainWindow() {
+  const created = new BrowserWindow({ width: 1380, height: 900, minWidth: 1080, minHeight: 730, backgroundColor: '#0d1015', title: 'Neuron', show: false,
+    titleBarStyle: 'hidden', titleBarOverlay: { color: '#0d1015', symbolColor: '#9da8b8', height: 38 },
+    webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, spellcheck: false }
+  });
+  window = created;
+  created.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  created.webContents.on('will-navigate', event => event.preventDefault());
+  created.webContents.session.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
+  created.on('close', event => { if (!quitting && !smoke) { event.preventDefault(); created.hide(); } });
+  created.on('closed', () => { if (window === created) window = null; });
+  try { await created.loadFile(path.join(__dirname, '../ui/index.html')); }
+  catch (error) { if (!created.isDestroyed()) created.destroy(); throw error; }
+  return created;
+}
 function notify(message) { if (window && !window.isDestroyed()) window.webContents.send('notice', message); }
 function state() { return { profiles: store.profiles, macros: store.macros, devices: devices.map(({ paths, ...d }) => d), catalog, topControls, mouseActions, active: active && { profileId: active.profile.id, deviceId: active.deviceId, profile: active.profile }, applying, auto, error: lastError || store.warning }; }
-function changed() { if (window && !window.isDestroyed()) window.webContents.send('state', state()); }
-function clearShortcuts() { for (const key of registered) globalShortcut.unregister(key); registered.clear(); heldTriggers.clear(); }
-async function waitForRelease(key) {
+function changed() { updateTray(); if (window && !window.isDestroyed()) window.webContents.send('state', state()); }
+function updateTray() {
+  if (!tray || tray.isDestroyed()) return;
+  const status = trayState(devices, batteries, active?.deviceId), key = JSON.stringify(status);
+  if (key === lastTrayState) return;
+  lastTrayState = key;
+  tray.setImage(nativeImage.createFromBitmap(trayPixels(status.level, status.charging), { width: 32, height: 32 }));
+  tray.setToolTip(status.tooltip.slice(0, 127));
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: 'Open Neuron', click: openWindow },
+    ...status.lines.map(label => ({ label, enabled: false })),
+    { type: 'separator' }, { label: 'Stop macro', click: () => player.stop() },
+    { type: 'separator' }, { label: 'Quit', click: () => app.quit() }
+  ]));
+}
+function clearShortcuts() { for (const key of registered) globalShortcut.unregister(key); registered.clear(); for (const press of heldTriggers.values()) press.abort(); heldTriggers.clear(); }
+async function waitForRelease(key, press) {
   const virtualKey = 111 + Number(key.slice(1));
   try {
-    while (!quitting && heldTriggers.has(key)) {
+    while (!quitting && heldTriggers.get(key) === press) {
       await new Promise(resolve => setTimeout(resolve, 25));
       if (!(await bridge.call('keyDown', { key: virtualKey })).down) break;
     }
   } catch(error) { notify(error.message); }
-  finally { heldTriggers.delete(key); }
+  finally { press.abort(); if (heldTriggers.get(key) === press) heldTriggers.delete(key); }
 }
 function reserveShortcuts(profile) {
   const added = [];
@@ -50,11 +86,11 @@ function reserveShortcuts(profile) {
       const success = globalShortcut.register(key, () => {
         if (key === 'Control+Alt+Escape') { player.stop(); return; }
         if (applying || !active || heldTriggers.has(key)) return;
-        heldTriggers.add(key); void waitForRelease(key);
+        const press = new AbortController(); heldTriggers.set(key, press); void waitForRelease(key, press);
         const trigger = macroTriggers(active.profile).find(t=>t.key===key);
         if (trigger) {
           const macro = active.profile.macros.find(m => m.id === trigger.id);
-          if (macro) void player.play(macro);
+          if (macro) void player.trigger(macro, { signal: press.signal });
         }
       });
       if (!success) throw new Error(`${key} is used by another app. Close that app before enabling macros.`);
@@ -92,7 +128,7 @@ async function restoreDevice(id, options) {
 }
 function handle(channel, fn) {
   ipcMain.handle(channel, async (event, ...args) => {
-    if (event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame || event.senderFrame.url !== rendererURL) throw new Error('Untrusted IPC sender.');
+    if (!window || window.isDestroyed() || event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame || event.senderFrame.url !== rendererURL) throw new Error('Untrusted IPC sender.');
     try { return { ok: true, result: await fn(...args) }; }
     catch (error) { return { ok: false, error: error.message }; }
   });
@@ -107,6 +143,7 @@ async function poll() {
       if (active && !devices.some(d => d.id === active.deviceId)) { player.stop(); notify('Naga disconnected. Game profiles resume automatically after reconnecting.'); clearShortcuts(); active = null; }
       changed();
     }
+    await batteries.refresh(devices); updateTray();
     if (Date.now()<retryAfter) return;
     const foreground = await bridge.call('foreground');
     const target=automaticTarget(store.profiles,devices,active,foreground,fallbackId);
@@ -124,14 +161,8 @@ app.whenReady().then(async () => {
   bridge = new Bridge(); store = new Store(app.getPath('userData'));
   library = new GameLibrary(app.getPath('userData'));
   hardware = new Hardware(bridge, app.getPath('userData')); player = new MacroPlayer(bridge, notify);
+  batteries = new BatteryMonitor(hardware);
   devices = await hardware.devices(); fallbackId = store.profiles.find(p => !p.executable)?.id;
-  window = new BrowserWindow({ width: 1380, height: 900, minWidth: 1080, minHeight: 730, backgroundColor: '#0d1015', title: 'Neuron', show: false,
-    titleBarStyle: 'hidden', titleBarOverlay: { color: '#0d1015', symbolColor: '#9da8b8', height: 38 },
-    webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, spellcheck: false }
-  });
-  window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-  window.webContents.on('will-navigate', event => event.preventDefault());
-  window.webContents.session.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
   handle('state:get', () => state());
   handle('games:get', () => library.data);
   handle('games:scan', () => library.scan());
@@ -193,19 +224,13 @@ app.whenReady().then(async () => {
   handle('device:restore', id => restoreDevice(id, { restoreDpi: true }));
   handle('macro:stop', () => player.stop());
   handle('window:minimize', () => window.minimize());
-  // Construct a crisp native tray icon without external assets.
-  const pixels = Buffer.alloc(32 * 32 * 4);
-  for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) {
-    const lit = (x >= 7 && x <= 10 && y >= 7 && y <= 25) || (x >= 21 && x <= 24 && y >= 7 && y <= 25) || (Math.abs(y - x) <= 2 && x > 8 && x < 23);
-    const i = (y * 32 + x) * 4; pixels[i] = lit ? 180 : 21; pixels[i+1] = lit ? 235 : 16; pixels[i+2] = lit ? 124 : 13; pixels[i+3] = 255;
-  }
-  tray = new Tray(nativeImage.createFromBitmap(pixels, { width: 32, height: 32 })); tray.setToolTip('Neuron · Naga control');
-  tray.setContextMenu(Menu.buildFromTemplate([{ label: 'Open Neuron', click: () => { window.show(); window.focus(); } }, { label: 'Stop macro', click: () => player.stop() }, { type: 'separator' }, { label: 'Restore mappings and quit', click: () => app.quit() }]));
-  tray.on('double-click', () => { window.show(); window.focus(); });
-  window.on('close', event => { if (!quitting && !smoke) { event.preventDefault(); window.hide(); } });
-  await window.loadFile(path.join(__dirname, '../ui/index.html'));
-  window.show();
+  tray = new Tray(nativeImage.createFromBitmap(trayPixels(null), { width: 32, height: 32 }));
+  updateTray();
+  tray.on('double-click', openWindow);
+  readyToOpen = true;
+  await showWindow();
   if (smoke) { await require(dpiSmoke ? '../scripts/dpi-smoke.cjs' : '../scripts/smoke.cjs').run(window, app, hardware); return; }
+  await batteries.refresh(devices); updateTray();
   try {
     reporter = new HardwareReporter({ directory: app.getPath('userData'), ...reportingConfig,
       system: { appVersion: app.getVersion(), platform: process.platform, osVersion: os.release(), architecture: process.arch } });
@@ -224,9 +249,9 @@ app.on('before-quit', event => {
     try {
       if (active) await restoreDevice(active.deviceId);
       quitting = true; clearInterval(timer); clearShortcuts(); bridge?.close(); tray?.destroy(); app.quit();
-    } catch(error) { window?.show(); dialog.showErrorBox('Reconnect your Naga to restore it', `${error.message}\nOriginal settings are backed up locally. Reconnect the mouse and try Restore mappings and quit again.`); }
+    } catch(error) { openWindow(); dialog.showErrorBox('Reconnect your Naga to restore it', `${error.message}\nOriginal settings are backed up locally. Reconnect the mouse and try Quit again.`); }
   })();
 });
 app.on('window-all-closed', () => { if (smoke) app.quit(); });
-app.on('activate', () => window?.show());
-app.on('second-instance', () => { if (window) { if (window.isMinimized()) window.restore(); window.show(); window.focus(); } });
+app.on('activate', openWindow);
+app.on('second-instance', openWindow);

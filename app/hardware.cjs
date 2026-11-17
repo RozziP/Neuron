@@ -8,6 +8,7 @@ const { parseChord } = require('./keys.cjs');
 const { atomicWrite, validateProfile } = require('./store.cjs');
 const { topControls, mouseActions, macroTriggers } = require('./controls.cjs');
 const { validateDpi, dpiPacket, dpiFromReply, sameDpi } = require('./dpi.cjs');
+const { batteryPacket, batteryFromReply } = require('./battery.cjs');
 const same = (a, b) => a.type === b.type && JSON.stringify(a.params) === JSON.stringify(b.params);
 function actionsFor(profile) {
   const p = validateProfile(profile);
@@ -43,6 +44,19 @@ class Hardware {
   async exchange(devicePath, request) {
     const response = await this.bridge.call('exchange', { path: devicePath, report: request.toString('base64') });
     return decode(Buffer.from(response.report, 'base64'), request);
+  }
+  async readBattery(device) {
+    return this.serialize(async () => {
+      const control = device.paths.find(p => p.interface === 0 && p.usage === 2);
+      if (!control) throw new Error('Battery control interface unavailable.');
+      const level = batteryFromReply(await this.exchange(control.path, batteryPacket(device.productId)));
+      let charging = device.productId === 0x00b4 ? false : null;
+      if (charging !== false) {
+        try { charging = batteryFromReply(await this.exchange(control.path, batteryPacket(device.productId, true)), true); }
+        catch { /* Keep a valid level if this firmware cannot report charging. */ }
+      }
+      return { level, charging };
+    });
   }
   async target(id) {
     const devices = await this.devices(), device = devices.find(d => d.id === id);

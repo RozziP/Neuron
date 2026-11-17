@@ -19,20 +19,21 @@ function validateProfile(p) {
     if (!m || typeof m.id !== 'string' || !/^[a-z0-9-]{1,80}$/i.test(m.id) || ids.has(m.id)) throw new Error('Invalid or duplicate macro ID.');
     ids.add(m.id);
     if (typeof m.name !== 'string' || !m.name.trim() || m.name.length > 60) throw new Error('Give each macro a name (1–60 characters).');
-    if (!Number.isInteger(m.repeat) || m.repeat < 1 || m.repeat > 20 || !Array.isArray(m.steps) || m.steps.length < 1 || m.steps.length > 100) throw new Error('Macros need 1–100 steps and 1–20 repeats.');
-    let duration = 0;
+    const repeatMode = m.repeatMode ?? (m.repeat === 1 ? 'once' : 'count');
+    if (!['once', 'count', 'toggle', 'held'].includes(repeatMode)) throw new Error('Choose a valid macro playback mode.');
+    if (repeatMode === 'count' && (!Number.isSafeInteger(m.repeat) || m.repeat < 1)) throw new Error('Repeat count must be a positive whole number.');
+    if (!Array.isArray(m.steps) || m.steps.length < 1 || m.steps.length > 100) throw new Error('Macros need 1–100 steps.');
     const steps = m.steps.map(s => {
       if (s.type === 'delay') {
         if (!Number.isInteger(s.ms) || s.ms < 10 || s.ms > 10000) throw new Error('Delays must be 10–10,000 ms.');
-        duration += s.ms; return { type: 'delay', ms: s.ms };
+        return { type: 'delay', ms: s.ms };
       }
       if (s.type !== 'key') throw new Error('Unsupported macro step.');
       const chord = parseChord(s.value);
       if (chord.hid >= 0x68 && chord.hid <= 0x73) throw new Error('F13–F24 are reserved for macro triggers.');
-      duration += 15; return { type: 'key', value: s.value.trim() };
+      return { type: 'key', value: s.value.trim() };
     });
-    if (duration * m.repeat > 120000) throw new Error('A macro may run for at most two minutes.');
-    return { id: m.id, name: m.name.trim(), repeat: m.repeat, steps };
+    return { id: m.id, name: m.name.trim(), repeatMode, repeat: repeatMode === 'count' ? m.repeat : 1, steps };
   });
   if (!Array.isArray(p.bindings) || p.bindings.length !== p.plate) throw new Error('Button count does not match the side plate.');
   const validateBinding = (b, top = false) => {

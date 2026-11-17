@@ -11,6 +11,6 @@ Runtime dependencies:
 - Electron, MIT: https://github.com/electron/electron. Its distribution includes Chromium and other components; the portable folder includes Electron's `LICENSE` and `LICENSES.chromium.html`.
 - node-hid, MIT: https://github.com/node-hid/node-hid, including its native HIDAPI dependency and license files.
 
-Development packaging uses @electron/packager (BSD-2-Clause). Dependency license files remain in the installed packages. The lockfile records exact resolved dependency versions.
+Development packaging uses @electron/packager (BSD-2-Clause) and electron-builder (MIT), with NSIS for the Windows installer. Dependency license files remain in the installed packages. The lockfile records exact resolved dependency versions.
 
 Razer, Naga, and Synapse are trademarks of their respective owners. Neuron is an independent project.
