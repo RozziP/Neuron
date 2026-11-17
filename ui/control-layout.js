@@ -1,7 +1,7 @@
 function controlAt(index) {
   if (index < draft.plate) return {index,name:`Button ${index+1}`,short:String(index+1),binding:draft.bindings[index],top:false};
   const c=state.topControls[index-draft.plate];
-  return {...c,index,top:true,binding:draft.topBindings[c.id]};
+  return {...c,name:state.catalog.find(m => m.productId === draft.model)?.topLabels?.[c.id] || c.name,index,top:true,binding:draft.topBindings[c.id]};
 }
 function selectedControl() { return controlAt(selected); }
 function selectionName() { return selectedControl().name; }

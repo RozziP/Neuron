@@ -20,6 +20,8 @@ async function run(window, app, hardware, reporter, updates) {
     fs.writeFileSync(file,(await window.webContents.capturePage()).toPNG()); screenshots.push(file);
   };
   try {
+    await waitFor('!!document.querySelector("#profile-select option")');
+    await click('[data-nav="buttons"]');
     await waitFor('!!document.querySelector(".mouse-key")');
     // Exercise update checks through the real preload/IPC boundary without network or browser launches.
     const originalFetch = updates.fetchRelease, originalOpen = updates.openExternal;
@@ -158,6 +160,8 @@ async function run(window, app, hardware, reporter, updates) {
     assert.equal(await js('document.querySelector(".binding-value").textContent'),'Held combo');
     // Reload verifies both mode and side/top assignments survive persistence.
     window.webContents.reload();
+    await waitFor('!!document.querySelector("#profile-select option")');
+    await click('[data-nav="buttons"]');
     await waitFor('!!document.querySelector(".mouse-key")');
     assert.equal(await js('(await window.neuron.state()).macros[1].repeatMode'),'held');
     await click('[data-top-control="middle"]');
@@ -311,6 +315,44 @@ async function run(window, app, hardware, reporter, updates) {
       hardware.enumerated = originalRecords; reporter.enrich = originalEnrich; reporter.observe(originalRecords);
       await js('window.neuron.scan()');
     }
+    // Model selection and experimental dock controls through real IPC. All
+    // device operations here are simulated; never write to an attached mouse.
+    const { mappingCapabilities } = require('../app/drivers.cjs');
+    const dock = discoverReceivers([{vendorId:0x1532,productId:0x00a4,interface:0,usagePage:1,usage:2,path:'smoke-dock'}])[0];
+    const savedHardware = {devices:hardware.devices,apply:hardware.apply,restore:hardware.restore};
+    const applied=[];
+    try {
+      hardware.devices = async () => { const d=hardware.models.describe(dock); return [{...d,...mappingCapabilities(d)}]; };
+      hardware.apply = async (id,profile) => { applied.push({id,model:profile.model}); return {message:'Simulated dock mappings applied.'}; };
+      hardware.restore = async () => ({message:'Simulated dock mappings restored.'});
+      await click('#scan-devices');
+      await waitFor('!!document.querySelector(".receiver-model-form")');
+      assert.match(await js('document.querySelector(".receiver-device").textContent'),/Which mouse is paired/);
+      await change('.receiver-model','168');
+      await js('document.querySelector(".receiver-model-form").requestSubmit()');
+      await waitFor('(await window.neuron.state()).preferredMouseModel === 168 && !document.querySelector("#apply").disabled');
+      assert.equal(await js('(await window.neuron.state()).devices[0].productId'),164);
+      assert.equal(await js('document.querySelector("#manual-mouse-model").value'),'168');
+      assert.equal(await js('document.querySelector("#inspect-device").disabled'),false);
+      window.setSize(1080,730);await screenshot('dock-mouse-selection');
+      assert.equal(await js('document.querySelector("main").scrollWidth <= document.querySelector("main").clientWidth'),true);
+      window.setSize(1380,900);
+      await click('#apply');await waitFor('(await window.neuron.state()).active?.deviceId === '+JSON.stringify(dock.id));
+      assert.deepEqual(applied,[{id:dock.id,model:168}]);
+      assert.equal(await js(`(async()=>{try{await window.neuron.selectDeviceModel(${JSON.stringify(dock.id)},103);return false}catch{return true}})()`),true);
+      await js(`window.neuron.restore(${JSON.stringify(dock.id)})`);
+      await change('.receiver-model','103');await js('document.querySelector(".receiver-model-form").requestSubmit()');
+      await waitFor('(await window.neuron.state()).devices[0].modelId === 103 && document.querySelector("#apply").disabled');
+      assert.equal(await js('document.querySelector("#inspect-device").disabled && document.querySelector("#restore-device").disabled'),true);
+      await click('.reset-mouse-choice');await waitFor('!(await window.neuron.state()).devices[0].modelId');
+      hardware.devices=async()=>[];await click('#scan-devices');
+      await change('#manual-mouse-model','150');await js('document.querySelector("#manual-mouse-form").requestSubmit()');
+      await waitFor('(await window.neuron.state()).preferredMouseModel === 150');
+      window.webContents.reload();await waitFor('!!document.querySelector(".mouse-key")');
+      assert.equal(await js('document.querySelector("#device-short").textContent'),'Naga X');
+      await click('[data-nav="devices"]');await change('#manual-mouse-model','103');await js('document.querySelector("#manual-mouse-form").requestSubmit()');
+      await waitFor('(await window.neuron.state()).preferredMouseModel === 103');
+    } finally { Object.assign(hardware,savedHardware);await js('window.neuron.scan()'); }
     // Invalid payloads must be rejected across the actual renderer/main boundary.
     assert.equal(await js(`(async()=>{try{await window.neuron.save({id:'invalid'});return false}catch{return true}})()`),true);
     // A launch from Start must recover a destroyed window in the running process.
@@ -327,6 +369,8 @@ async function run(window, app, hardware, reporter, updates) {
         await delay(50);
       }
       assert.equal(window.isDestroyed(),false,'Launching again should recreate a destroyed window.');
+      await waitFor('!!document.querySelector("#profile-select option")');
+      await click('[data-nav="buttons"]');
       await waitFor('!!document.querySelector(".mouse-key")');
       assert.equal(BrowserWindow.getAllWindows().length,1);
       assert.equal(await js('(await window.neuron.state()).macros[1].repeatMode'),'held');

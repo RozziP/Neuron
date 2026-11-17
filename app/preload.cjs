@@ -9,6 +9,8 @@ contextBridge.exposeInMainWorld('neuron', {
   inspectDpi: id => call('devices:dpi', id),
   applyDpi: (id, value) => call('devices:dpi:apply', id, value),
   state: () => call('state:get'), scan: () => call('devices:scan'), inspect: (id, plate) => call('devices:inspect', id, plate),
+  selectDeviceModel: (id, model) => call('devices:model', id, model),
+  preferMouseModel: model => call('devices:prefer-model', model),
   confirmHardware: (key,modelName) => call('hardware:confirm',key,modelName),
   openHardwareIssue: key => call('hardware:open-issue',key),
   save: profile => call('profile:save', profile), create: (name, model, plate) => call('profile:new', name, model, plate),

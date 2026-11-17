@@ -1,6 +1,6 @@
 {
   "name": "neuron",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "private": true,
   "description": "A local-first desktop control center for Razer Naga mice",
   "main": "app/main.cjs",
@@ -18,13 +18,43 @@
   "build": {
     "appId": "com.rozzip.neuron",
     "productName": "Neuron",
-    "directories": { "output": "dist/release" },
-    "files": ["app/**/*", "ui/**/*", "native/NeuronBridge.exe", "scripts/game-registry.ps1", "scripts/hardware-evidence.ps1", "scripts/smoke.cjs", "scripts/dpi-smoke.cjs", "README.md", "THIRD_PARTY.md", "package.json"],
-    "asarUnpack": ["**/*.node", "**/*.exe", "**/*.ps1"],
+    "directories": {
+      "output": "dist/release"
+    },
+    "files": [
+      "app/**/*",
+      "ui/**/*",
+      "native/NeuronBridge.exe",
+      "scripts/game-registry.ps1",
+      "scripts/hardware-evidence.ps1",
+      "scripts/smoke.cjs",
+      "scripts/dpi-smoke.cjs",
+      "README.md",
+      "THIRD_PARTY.md",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "**/*.node",
+      "**/*.exe",
+      "**/*.ps1"
+    ],
     "npmRebuild": false,
     "publish": null,
-    "win": { "target": "nsis", "artifactName": "Neuron-Setup-${version}-${arch}.${ext}" },
-    "nsis": { "oneClick": false, "perMachine": false, "allowElevation": false, "allowToChangeInstallationDirectory": true, "runAfterFinish": false, "deleteAppDataOnUninstall": false }
+    "win": {
+      "target": "nsis",
+      "artifactName": "Neuron-Setup-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": false,
+      "allowToChangeInstallationDirectory": true,
+      "runAfterFinish": false,
+      "deleteAppDataOnUninstall": false,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Neuron",
+      "include": "build/installer.nsh"
+    }
   },
   "dependencies": {
     "node-hid": "3.3.0"

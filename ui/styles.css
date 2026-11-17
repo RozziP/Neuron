@@ -27,3 +27,7 @@ body{height:100vh;overflow:hidden}.app-shell{height:calc(100vh - 38px);min-heigh
   .sidebar-bottom { padding-top: 12px; }
   .sidebar-bottom .version { margin-top: 12px; }
 }
+/* Mouse selection stays available with or without a connected device. */
+.manual-mouse-form { padding: 20px 24px; display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
+.manual-mouse-form .field { flex: 1 1 280px; }
+.manual-mouse-form .help { flex-basis: 100%; margin: 0; }

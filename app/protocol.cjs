@@ -12,11 +12,25 @@ function decode(raw, request) {
   if (report[0] !== 2) throw new Error(`Mouse rejected command (status ${report[0]}).`);
   if (report[5] > 80) throw new Error('Invalid HID response payload length.');
   if (request[6] === 0x07 && [0x80, 0x84].includes(request[7]) && report[5] < 2) throw new Error('Incomplete battery response.');
+  if (request[6] === 2 && request[7] === 0x8c && report[5] < 10) throw new Error('Incomplete button mapping response.');
+  if (request[6] === 0 && request[7] === 0xbf && (report[8] > 26 || report[5] < 1 + report[8] * 3)) throw new Error('Incomplete paired-mouse response.');
   return report.subarray(8, 88);
 }
-function bindingPacket(slot, source, action) { return packet(0x0c, [slot, source, 0, action.type, action.params.length, ...action.params]); }
-function bindingFromReply(args, slot, source) {
-  if (args[0] !== slot || args[1] !== source || args[4] > 5) throw new Error('Unexpected button mapping response.');
-  return { type: args[3], params: [...args.subarray(5, 5 + args[4])] };
+function functionBlock(action) {
+  if (action.raw) {
+    if (!Array.isArray(action.raw) || action.raw.length !== 7 || action.raw.some(n => !Number.isInteger(n) || n < 0 || n > 255)) throw new Error('Invalid saved function block.');
+    return action.raw;
+  }
+  return [action.type, action.params.length, ...action.params, ...Array(5-action.params.length).fill(0)];
 }
-module.exports = { checksum, packet, decode, bindingPacket, bindingFromReply };
+function bindingPacket(slot, source, action) { return packet(0x0c, [slot, source, 0, ...functionBlock(action)]); }
+function bindingFromReply(args, slot, source, preserveRaw = false) {
+  if (args.length < 10) throw new Error('Incomplete button mapping response.');
+  if (args[0] !== slot || args[1] !== source || args[4] > 5) throw new Error('Unexpected button mapping response.');
+  // Native length-1 keyboard blocks still contain the key in the SECOND data
+  // byte. Preserve all seven function bytes, including unknown actions. Byte 2
+  // in a reply is not a reliable layer echo; normal-layer restores always use 0.
+  return { type: args[3], params: [...args.subarray(5, 5 + args[4])],
+    ...(preserveRaw ? {raw:[...args.subarray(3,10)]} : {}) };
+}
+module.exports = { checksum, packet, decode, bindingPacket, bindingFromReply, functionBlock };

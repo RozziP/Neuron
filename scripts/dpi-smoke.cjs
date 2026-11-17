@@ -21,6 +21,8 @@ async function run(window, app, hardware) {
     fs.writeFileSync(file, (await window.webContents.capturePage()).toPNG()); screenshots.push(file);
   };
   try {
+    await wait('!!document.querySelector("#profile-select option")');
+    await click('[data-nav="buttons"]');
     await wait('!!document.querySelector(".mouse-key")');
     const { validateDpi } = require('../app/dpi.cjs');
     let sensitivity = { x: 1800, y: 1800 }, writes = 0;

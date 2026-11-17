@@ -1,3 +1,4 @@
+const { driverFor } = require('./drivers.cjs');
 const fs = require('node:fs/promises');
 const syncFs = require('node:fs');
 const path = require('node:path');
@@ -137,8 +138,8 @@ function automaticTarget(profiles,devices,active,foreground,fallbackId) {
     const fallback=profiles.find(p=>p.id===fallbackId && compatible(p))||profiles.find(compatible);
     return fallback?{profile:fallback,deviceId:active.deviceId}:{restore:true,deviceId:active.deviceId};
   }
-  for(const device of devices.filter(d=>d.productId===0x0067))for(const plate of [12,7]) {
-    const profile=matchGameProfile(profiles,foreground,device.productId,plate);
+  for(const device of devices.filter(d=>d.support !== 'recognition-only' && driverFor(d)))for(const plate of [...driverFor(device).plates].reverse()) {
+    const profile=matchGameProfile(profiles,foreground,device.modelId ?? device.productId,plate);
     if(profile)return {profile,deviceId:device.id};
   }
   return null;

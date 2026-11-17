@@ -52,7 +52,7 @@ async function createMainWindow() {
   return created;
 }
 function notify(message) { if (window && !window.isDestroyed()) window.webContents.send('notice', message); }
-function state() { return { profiles: store.profiles, macros: store.macros, devices: devices.map(({ paths, ...d }) => d), hardwareReports: reporter?.summaries() || [], catalog, topControls, mouseActions, active: active && { profileId: active.profile.id, deviceId: active.deviceId, profile: active.profile }, applying, auto, error: lastError || store.warning }; }
+function state() { return { preferredMouseModel: hardware.models.preferredModel, profiles: store.profiles, macros: store.macros, devices: devices.map(({ paths, ...d }) => d), hardwareReports: reporter?.summaries() || [], catalog, topControls, mouseActions, active: active && { profileId: active.profile.id, deviceId: active.deviceId, profile: active.profile }, applying, auto, error: lastError || store.warning }; }
 function changed() { updateTray(); if (window && !window.isDestroyed()) window.webContents.send('state', state()); }
 function updateTray() {
   if (!tray || tray.isDestroyed()) return;
@@ -195,6 +195,15 @@ app.whenReady().then(async () => {
     const profile=store.save(createGameProfile(game,base,model,plate,executablePath)); changed(); return profile;
   });
   handle('devices:scan', async () => { devices = await hardware.devices(); changed(); return state(); });
+  handle('devices:model', async (id, model) => {
+    if (applying) throw new Error('Wait for the current device operation to finish.');
+    if (active?.deviceId === id) throw new Error('Restore the active mouse before changing its model.');
+    applying = true; changed();
+    try { await hardware.selectModel(id, model); devices = await hardware.devices(); }
+    finally { applying = false; changed(); }
+    return state();
+  });
+  handle('devices:prefer-model', model => { hardware.models.prefer(model); changed(); return state(); });
   handle('hardware:confirm', (key,modelName) => {
     if(!reporter)throw new Error('Hardware identification is not ready. Try again shortly.');
     reporter.confirm(key,modelName);

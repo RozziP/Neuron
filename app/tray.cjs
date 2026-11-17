@@ -1,7 +1,7 @@
 const { batteryModels } = require('./battery.cjs');
 const digits = ['111101101101111', '010110010010111', '111001111100111', '111001111001111', '101101111001001', '111100111001111', '111100111101111', '111001001001001', '111101111101111', '111101111001111'];
 function trayState(devices, monitor, activeId) {
-  const wireless = devices.filter(d => batteryModels.has(d.productId));
+  const wireless = devices.filter(d => d.support !== 'recognition-only' && batteryModels.has(d.modelId ?? d.productId));
   const selected = wireless.find(d => d.id === activeId) || wireless[0];
   const battery = selected && monitor.cache.get(selected.id);
   const lines = devices.map(d => `${d.name}: ${monitor.status(d)}`);

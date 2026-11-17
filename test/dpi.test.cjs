@@ -9,7 +9,7 @@ const { dpiPacket, dpiFromReply } = require('../app/dpi.cjs');
 function fixture(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'neuron-dpi-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-  const h = new Hardware(null, dir), device = { id: 'dpi-trinity', path: 'fixture' };
+  const h = new Hardware(null, dir), device = { id: 'dpi-trinity', productId:0x0067, path: 'fixture' };
   let dpi = { x: 1800, y: 2000 };
   const writes = [], bindings = new Map();
   h.target = async () => device;

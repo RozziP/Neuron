@@ -1,5 +1,38 @@
 # Naga hardware implementation notes
 
+## Remapping adapters and Mouse Dock Pro
+
+The adapter registry in `app/drivers.cjs` separates physical USB IDs from selected mouse models. These are independently implemented protocol adapters, not bundled copies of other applications. All are experimental in Neuron; only Trinity has local physical verification.
+
+| Mouse / connection | IDs | Side plates | Write storage |
+| --- | --- | --- | --- |
+| Trinity | `0067` | 7, 12 | Pending 2, then active 1 (existing behavior) |
+| Naga Pro wired / receiver | `008F`, `0090` | 2, 6, 12 | Live 0 |
+| Naga V2 Pro wired / receiver | `00A7`, `00A8` | 2, 6, 12 | Live 0 |
+| Naga V3 Pro wired / receiver | `00E7`, `00E8` | 2, 6, 12 | Live 0 |
+| Naga V2 HyperSpeed receiver | `00B4` | 12 | Stored 1, then live 0 |
+| V2/V3 Pro via Mouse Dock Pro | `00A4` transport | 2, 6, 12 | Live 0, transaction `1F` to the paired mouse |
+
+Modern remapping uses class `02`, GET `8C` / SET `0C`, size `0A`, transaction `1F`. Twelve-button plates use sources `40..4B`, six-button plates use `50..55`, and the two-button plate uses front `05` / rear `04`. Body controls use the published model-specific source table. V2 Pro's front/rear wheel-stage buttons are `6D` / `60`, not Trinity's `0B` / `0C`. Extra V3 controls, the underside profile button, Hypershift, Bluetooth configuration, onboard macro storage, and non-Trinity DPI controls are not exposed in this change.
+
+Every affected assignment is read before writing; originals are durably saved, each change is read back, and failures trigger rollback. Modern backups preserve the full seven-byte function block: factory keyboard blocks can advertise length 1 while carrying the key usage in the second data byte. The returned layer flag is not a reliable request echo; normal-layer writes and restoration explicitly address layer 0. Pro-family changes use only the live layer; they do not promise persistence after power loss or a hardware profile change. HyperSpeed's stored layer is backed up and restored along with its live view.
+
+The submitted Dock Pro report (`1532:00A4`, release `0101`) contains nine HID collections. Only the interface-0 mouse collection anchors the connection; the interface-1 mouse and keyboard/consumer collections do not become extra devices. Read-only `00:BF` asks for paired devices (`count`, followed by connected flag and big-endian PID triples). A single recognized V2/V3 Pro selects its adapter. Unavailable, ambiguous, or unsupported answers show a mouse-choice prompt on Devices. This probe is cached for 30 seconds and cleared on disconnect. A manual choice overrides identification and is saved per connection, without changing its transport PID. Other docked models and non-Razer receivers cannot acquire a Naga driver through manual selection.
+
+Dock lighting uses a different transaction (`FF`) from the paired mouse (`1F`); Neuron does not configure dock lighting. Dock backups include the selected mouse model in their local key. Restore the active mouse before changing a dock's selected model. A saved choice describes the user-selected model, not proof that the mouse is currently awake or still paired. Moving a dock to a port that changes its HID path may require selecting again.
+
+Protocol evidence:
+
+- [OpenSnek USB button protocol](https://github.com/gh123man/OpenSnek/blob/main/docs/protocol/USB_PROTOCOL.md), including full function blocks and layer handling.
+- [Naga Pro physical side-panel validation](https://github.com/gh123man/OpenSnek/blob/main/captures/usb/2026-10-06-naga-pro-side-panel-validation/README.md).
+- [V2 Pro receiver and wired capture](https://github.com/gh123man/OpenSnek/blob/main/captures/usb/2026-10-07-naga-v2-pro-buttons/README.md).
+- [V3 Pro receiver](https://github.com/gh123man/OpenSnek/blob/main/captures/usb/2026-10-17-naga-v3-pro/README.md) and [wired validation](https://github.com/gh123man/OpenSnek/blob/main/captures/usb/2026-10-18-naga-v3-pro-wired/README.md).
+- [OpenNaga HyperSpeed verification](https://github.com/Zer0codestuff/OpenNaga/blob/main/Documentation/onboard-verification-2026-09-11.md) and [binding codec](https://github.com/Zer0codestuff/OpenNaga/blob/main/Sources/NagaController/Hardware/RazerOnboardBindings.swift).
+- [OpenMouse's V2 Pro dock passthrough report](https://github.com/OpenMouse-Project/mouse-protocol/blob/main/docs/razer-testing.md), which establishes settings transport, not button-remapping verification by itself.
+- Secretarybird's [dock identification and separate transaction IDs](https://github.com/infinityInfinite/secbird/blob/main/crates/secbird-core/src/device.rs), [button implementation](https://github.com/infinityInfinite/secbird/blob/main/crates/secbird-core/src/buttons.rs), and [command definitions](https://github.com/infinityInfinite/secbird/blob/main/crates/secbird-core/src/commands.rs).
+
+Neuron's new adapters have simulated transport tests for exact restoration, wrong model/plate rejection, lost acknowledgements, rollback, and automatic profile selection. They still need Windows hardware acceptance testing on each model/transport. An upstream hardware capture establishes protocol evidence; it does not mean Neuron has been physically tested on that device. Older Naga models remain discovery-only where a sufficiently supported remapping protocol has not been established.
+
 ## Compx receiver recognition
 
 The supplied Windows report identifies VID `3554`, PID `F55D`, release `0300`, manufacturer `Compx`, product `2.4G Wireless Receiver`. Its eight HID collections include keyboard (interface 0), system/consumer and vendor pages `FF02`–`FF05` (interface 1), and mouse usage page `0001` / usage `0002` (interface 2).

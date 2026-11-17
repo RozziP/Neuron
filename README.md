@@ -1,14 +1,14 @@
 # Neuron
 
-A Windows desktop control center for Razer Naga mice. The first milestone is button rebinding, macros, and game profiles. All Naga generations are the compatibility target; **this build has a working experimental Trinity driver, not universal Naga support**.
+A Windows desktop control center for Razer Naga mice. The first milestone is button rebinding, macros, and game profiles. All Naga generations are the compatibility target; **remapping is experimental for Trinity, Naga Pro, V2 Pro, V3 Pro, and V2 HyperSpeed on supported USB connections**. Only Trinity has been physically tested in Neuron; newer adapters use published community protocol captures.
 
 ## Run
 
-Download the Windows x64 installer from [the latest release](https://github.com/RozziP/Neuron/releases/latest), run `Neuron-Setup-0.1.4-x64.exe`, and launch Neuron from the Start menu. The installer includes the app runtime and native helper; Node.js and administrator access are not required. This release is unsigned, so Windows may display an unknown-publisher warning.
+Download the Windows x64 installer from [the latest release](https://github.com/RozziP/Neuron/releases/latest), run `Neuron-Setup-0.1.5-x64.exe`, and launch Neuron from the Start menu. The installer includes the app runtime and native helper; Node.js and administrator access are not required. This release is unsigned, so Windows may display an unknown-publisher warning.
 
 Open `dist/Neuron-win32-x64/Neuron.exe` for the local portable build. Keep the executable with the rest of its folder. No Node installation or administrator access is needed for that build.
 
-The sidebar shows the running app version and checks GitHub for a newer stable release at startup and every six hours. **Check for updates** checks manually. When available, **Update to…** opens that release on GitHub: download the Windows installer, quit Neuron from the tray so it restores your mouse mappings, and run the installer. Updating keeps your saved profiles and macros. Installation is manual; portable users can use the installer to switch to an installed copy. Offline checks can be retried without interrupting mouse controls.
+The sidebar shows the running app version and checks GitHub for a newer stable release at startup and every six hours. **Check for updates** checks manually. When available, **Update to…** opens that release on GitHub: download the Windows installer, quit Neuron from the tray so it restores your mouse mappings, and run the installer. Updating keeps your saved profiles and macros and restores the Neuron Start menu shortcut, even if it was deleted. Installation is manual; portable users can use the installer to switch to an installed copy. Offline checks can be retried without interrupting mouse controls.
 
 For an existing installer-based installation, run the new installer directly; no manual uninstall is needed. It detects the existing installation folder and replaces the previous version while retaining profiles, shared macros, and original-mouse backups in `%APPDATA%/Neuron`.
 
@@ -24,7 +24,7 @@ Development requires Node.js 22.12+ and Windows x64 with .NET Framework 4.x. The
 ## Use
 
 1. Close Synapse so it does not compete with Neuron for settings.
-2. Select the correct model and attached side plate. Trinity 12-button is the hardware-tested starting point; 7-button support is experimental and not physically tested.
+2. Open **Your devices → Select your mouse** to choose a model manually, even offline. For a receiver or dock that cannot identify its paired mouse, answer **Which mouse is paired with this dock/receiver?** and save the choice. Then select the attached side plate. Trinity 12-button is the hardware-tested starting point; 7-button support is experimental and not physically tested.
 3. Click a side or top mouse control, then **Click here, then press a key** to capture a shortcut. To use a modifier by itself, press and release it during capture. Modifier-only combinations such as `Ctrl+Shift` are also supported. Escape cancels capture; you can assign Escape by clicking it on the virtual keyboard .
 4. Click **Save & apply to mouse** at the top to save the profile, write its button mappings, and verify readback. Save profile in the sticky header saves locally without changing your mouse. Top controls start as Original and remain unchanged until you rebind them. Returning to Original restores the saved mapping. Keep Left click assigned somewhere. Sensitivity is controlled separately in the DPI tab. Lighting is unchanged.
 5. **Test on virtual keyboard** opens a keyboard that highlights keys while held and clears them on release. Press your physical keyboard or mapped mouse buttons with Neuron focused. Clicking a virtual key assigns it to the currently selected mouse button. The virtual keyboard replaces the old bindings overview.
@@ -33,7 +33,7 @@ Development requires Node.js 22.12+ and Windows x64 with .NET Framework 4.x. The
 
 Macro buttons use F13–F24 on the mouse, with corresponding global shortcuts reserved while that profile is applied. Other keyboards emitting those same F-keys can also trigger the macro. Playback uses Windows SendInput and requires Neuron to stay running; macros are not stored onboard. Key steps are taps, not held-key sequences. Physical key positions follow the USB/US keyboard map; layout-dependent symbols may differ on other keyboard layouts. Windows does not allow a normal-privilege app to inject input into an elevated app.
 
-The system tray icon displays the battery percentage and a small charge bar for Naga Epic, Epic Chroma, Pro, V2 Pro, and V2 HyperSpeed over supported USB/receiver connections. It refreshes every 30 seconds, turns orange at 20% or below, and blue while charging. Hover or right-click for the device name and battery/charging status. With multiple wireless mice, the icon prefers the active mouse, then the first detected wireless mouse; the menu lists every device. Wired-only models such as Trinity show “Wired · no battery.” Failed reads show “Battery unavailable” instead of an old percentage. Battery reads follow OpenRazer's protocol and still need physical verification on wireless models; they do not enable profile writes on those models.
+The system tray icon displays the battery percentage and a small charge bar for Naga Epic, Epic Chroma, Pro, V2 Pro, V3 Pro, and V2 HyperSpeed over supported USB/receiver connections, including V2/V3 Pro through a selected Dock Pro adapter. It refreshes every 30 seconds, turns orange at 20% or below, and blue while charging. Hover or right-click for the device name and battery/charging status. With multiple wireless mice, the icon prefers the active mouse, then the first detected wireless mouse; the menu lists every device. Wired-only models such as Trinity show “Wired · no battery.” Failed reads show “Battery unavailable” instead of an old percentage. Battery reads follow OpenRazer's protocol and still need physical verification on wireless models; remapping availability is determined separately by the model’s adapter.
 
 ## DPI
 
@@ -41,7 +41,7 @@ Open **DPI**, set 100–16,000 DPI with the sliders, exact inputs, or quick pick
 
 Sensitivity is mouse-wide. Saving, applying, importing, or switching button profiles does not change it. Neuron reads the current mouse sensitivity when opening DPI; it does not store DPI in profiles. Leaving a game or quitting Neuron restores button mappings without changing sensitivity. **Restore original** on Devices explicitly restores both mappings and the first backed-up DPI.
 
-This controls current sensitivity only; the mouse's DPI buttons still cycle its existing onboard stages. It does not rewrite those stages or guarantee persistence after unplugging the mouse. Other Naga models remain unsupported for hardware writes.
+This controls current sensitivity only; the mouse's DPI buttons still cycle its existing onboard stages. It does not rewrite those stages or guarantee persistence after unplugging the mouse. The newer remapping adapters do not enable non-Trinity DPI controls.
 
 `npm run smoke:dpi` checks the Electron page, validation, profile independence, reload, disconnection, and compact layout with isolated test profiles and a simulated DPI device. It does not write to physical hardware.
 
@@ -57,7 +57,10 @@ Import/export uses versioned `.json` files. New imported profiles get new IDs. O
 
 | Capability | Status |
 | --- | --- |
-| Discover known Naga USB identities | 17 identities in the catalog |
+| Discover known Naga USB identities | 20 identities in the catalog |
+| Naga Pro, V2 Pro, V3 Pro (wired / receiver) | Experimental remapping for 2-, 6-, and 12-button plates; community protocol evidence, Neuron hardware validation pending |
+| Naga V2 HyperSpeed receiver | Experimental 12-button remapping; community protocol evidence, Neuron hardware validation pending |
+| V2/V3 Pro through Mouse Dock Pro `1532:00A4` | Experimental remapping and battery reads; identifies the paired model where possible, otherwise asks the user |
 | Trinity: read 12 side-button mappings | Verified on connected `1532:0067` hardware |
 | Trinity: change a mapping and restore it | Verified with a temporary F24 mapping, then exact restoration of both original slots |
 | Trinity: Ctrl, Shift, Alt, Ctrl+Shift, Ctrl+1 mappings | Hardware write/readback verified; physical hold/release acceptance testing remains |
@@ -65,7 +68,7 @@ Import/export uses versioned `.json` files. New imported profiles get new IDs. O
 | Windows macro playback | Verified into the app's focused test field |
 | Profile persistence and UI flows | Automated tests |
 | Automatic game switching | Implemented; needs acceptance testing in real games |
-| Other Naga models, Bluetooth, new USB identities | Planned; hardware writes disabled |
+| Older Naga models, Bluetooth, other USB identities | Discovery/profile editing where recognized; remapping drivers still needed |
 | Compx `3554:F55D` 2.4 GHz receiver | Recognition only; mouse model unknown, configuration and battery reads unavailable |
 | Trinity top controls (clicks, wheel, tilt, DPI buttons) | Editable; all mappings read from hardware, DPI-up rebind/readback/restore verified; physical press testing remains |
 | 2-button plate, Hypershift, onboard macros | Planned |
@@ -75,6 +78,10 @@ Import/export uses versioned `.json` files. New imported profiles get new IDs. O
 An experiment on one Trinity does not verify every firmware revision. See [hardware notes](docs/hardware.md) for the transport and observed behavior.
 
 Compx `3554:F55D` receivers appear in **Your devices** and the tray. This identity is shared by several mouse models, so it is not a selectable button-profile model. Receiver detection does not establish that its paired mouse is awake or connected. Button remapping, DPI, macro assignments, and battery reads require a verified model-specific driver; the hardware report alone cannot supply that protocol. Automatic unsupported-mouse reporting remains enabled for this receiver.
+
+Known USB IDs automatically select their remapping adapter. Dock Pro (`1532:00A4`) is a shared transport: Neuron tries a read-only paired-mouse query and asks for the model if the answer is missing or ambiguous. Choosing V2 Pro or V3 Pro enables its experimental dock adapter. Choosing an incompatible mouse cannot enable a driver on that transport. Manual connection choices and the preferred profile model are stored locally in `device-models.json` and can be changed or cleared on Devices. Restore the active mouse before changing its connection choice.
+
+Modern Pro-family remaps use the live profile and may reset after power cycling or changing the onboard profile. V2 HyperSpeed also updates its stored profile; both stored and live originals are backed up and restored. Every new driver retains the existing preflight, backup, readback and rollback workflow. See [hardware notes](docs/hardware.md) for each adapter’s source evidence and limitations.
 
 ## Data and recovery
 

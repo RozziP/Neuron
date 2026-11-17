@@ -4,19 +4,21 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { catalog } = require('./catalog.cjs');
 const { discoverReceivers } = require('./receivers.cjs');
-const { packet, decode, bindingPacket, bindingFromReply } = require('./protocol.cjs');
+const { DeviceModels } = require('./device-models.cjs');
+const { driverFor, sideSources, mappingCapabilities, pairedMouse } = require('./drivers.cjs');
+const { packet, decode, bindingPacket, bindingFromReply, functionBlock } = require('./protocol.cjs');
 const { parseChord } = require('./keys.cjs');
 const { atomicWrite, validateProfile } = require('./store.cjs');
 const { topControls, mouseActions, macroTriggers } = require('./controls.cjs');
 const { validateDpi, dpiPacket, dpiFromReply, sameDpi } = require('./dpi.cjs');
 const { batteryPacket, batteryFromReply } = require('./battery.cjs');
-const same = (a, b) => a.type === b.type && JSON.stringify(a.params) === JSON.stringify(b.params);
+const same = (a, b) => JSON.stringify(functionBlock(a)) === JSON.stringify(functionBlock(b));
 function actionsFor(profile) {
   const p = validateProfile(profile);
-  if (p.model !== 0x0067 || ![7,12].includes(p.plate)) throw new Error('Hardware writes are currently available for Trinity 7- and 12-button plates. Other Naga drivers are pending verification.');
+  const driver = driverFor({productId:p.model}), sources = sideSources(driver, p.plate);
   const triggers = macroTriggers(p);
-  const entries = p.bindings.map((binding,index)=>({binding,source:(p.plate===12 ? 0x40 : 0x50)+index}));
-  for (const c of topControls) if(p.topBindings[c.id].type!=='default') entries.push({binding:p.topBindings[c.id],source:c.source});
+  const entries = p.bindings.map((binding,index)=>({binding,source:sources[index]}));
+  for (const c of topControls) if(p.topBindings[c.id].type!=='default') entries.push({binding:p.topBindings[c.id],source:driver.top[c.id]});
   return entries.map(({binding, source}) => {
     let action;
     if (binding.type === 'disabled') action = { type: 0, params: [] };
@@ -27,9 +29,9 @@ function actionsFor(profile) {
   });
 }
 class Hardware {
-  constructor(bridge, directory) { this.bridge = bridge; this.directory = directory; this.queue = Promise.resolve(); }
+  constructor(bridge, directory) { this.bridge = bridge; this.directory = directory; this.queue = Promise.resolve(); this.models = new DeviceModels(directory); this.dockModels = new Map(); }
   serialize(fn) { const result = this.queue.then(fn); this.queue = result.catch(() => {}); return result; }
-  async devices() {
+  async devices({ identify = true } = {}) {
     this.enumerated = await hid.devicesAsync();
     const all = this.enumerated.filter(d => d.vendorId === 0x1532), devices = [];
     for (const d of all) {
@@ -40,7 +42,30 @@ class Hardware {
       if (!device) { device = { ...model, vendorId: d.vendorId, id, serial: d.serialNumber, paths: [], connected: true }; devices.push(device); }
       device.paths.push({ path: d.path, interface: d.interface, usage: d.usage });
     }
-    return [...devices, ...discoverReceivers(this.enumerated)];
+    const receivers = discoverReceivers(this.enumerated).map(d => this.models.describe(d));
+    for (const id of this.dockModels.keys()) if (!receivers.some(d => d.id === id)) this.dockModels.delete(id);
+    for (const receiver of receivers) {
+      if (receiver.connection !== 'dock' || receiver.modelSource === 'manual') continue;
+      let known = this.dockModels.get(receiver.id);
+      if (identify && this.bridge && (!known || Date.now() - known.checkedAt >= 30000)) {
+        let modelId = null;
+        try { modelId = pairedMouse(await this.serialize(() => this.exchange(receiver.paths[0].path, packet(0xbf, [], 0, 80)))); }
+        catch { /* Some dock firmware cannot identify the paired mouse. Ask the user. */ }
+        known = {modelId, checkedAt:Date.now()}; this.dockModels.set(receiver.id, known);
+      }
+      const model = catalog.find(m => m.productId === known?.modelId);
+      if (model && [0x00a8,0x00e8].includes(model.productId)) Object.assign(receiver, {
+        modelId:model.productId, modelSource:'automatic', transportName:receiver.name,
+        name:`${model.name.replace(/ · .+$/, '')} · ${receiver.name}`
+      });
+    }
+    return [...devices, ...receivers].map(d => ({...d, ...mappingCapabilities(d)}));
+  }
+  async selectModel(id, model) {
+    const device = (await this.devices()).find(d => d.id === id);
+    if (!device) throw new Error('The selected mouse or receiver is disconnected.');
+    if (device.connection) device.support = 'recognition-only';
+    this.models.select(device, model);
   }
   async exchange(devicePath, request) {
     const response = await this.bridge.call('exchange', { path: devicePath, report: request.toString('base64') });
@@ -52,33 +77,38 @@ class Hardware {
         throw new Error('Battery readings are not supported for this receiver yet.');
       const control = device.paths.find(p => p.interface === 0 && p.usage === 2);
       if (!control) throw new Error('Battery control interface unavailable.');
-      const level = batteryFromReply(await this.exchange(control.path, batteryPacket(device.productId)));
+      const level = batteryFromReply(await this.exchange(control.path, batteryPacket(device.modelId ?? device.productId)));
       let charging = device.productId === 0x00b4 ? false : null;
       if (charging !== false) {
-        try { charging = batteryFromReply(await this.exchange(control.path, batteryPacket(device.productId, true)), true); }
+        try { charging = batteryFromReply(await this.exchange(control.path, batteryPacket(device.modelId ?? device.productId, true)), true); }
         catch { /* Keep a valid level if this firmware cannot report charging. */ }
       }
       return { level, charging };
     });
   }
   async target(id) {
-    const devices = await this.devices(), device = devices.find(d => d.id === id);
+    // Called inside the operation queue: reuse dock identification instead of
+    // nesting a queued probe inside a queued read/apply/restore.
+    const devices = await this.devices({identify:false}), device = devices.find(d => d.id === id);
     if (!device) throw new Error('The selected mouse or receiver is disconnected.');
     if (device.support === 'recognition-only') throw new Error(device.supportMessage);
     if (device.vendorId !== 0x1532) throw new Error('No verified hardware driver for this device.');
-    if (device.productId !== 0x0067) throw new Error('This model is recognized; its hardware driver is not verified yet.');
+    const driver = driverFor(device);
+    if (!driver) throw new Error('This model is recognized; no remapping driver is available yet.');
     const control = device.paths.find(p => p.interface === 0 && p.usage === 2);
-    if (!control) throw new Error('The Trinity control interface is unavailable.');
-    return { ...device, path: control.path };
+    if (!control) throw new Error('The mouse control interface is unavailable.');
+    return { ...device, path: control.path, mappingDriver:driver };
   }
   async read(device, slot, source) {
-    return bindingFromReply(await this.exchange(device.path, packet(0x8c, [slot, source])), slot, source);
+    return bindingFromReply(await this.exchange(device.path, packet(0x8c, [slot, source])), slot, source, driverFor(device)?.raw);
   }
   async readDpi(device) {
     return dpiFromReply(await this.exchange(device.path, dpiPacket()));
   }
   async inspectDpi(id) {
-    return this.serialize(async () => this.readDpi(await this.target(id)));
+    return this.serialize(async () => { const device = await this.target(id);
+      if (device.productId !== 0x0067) throw new Error('DPI control is currently available for Trinity.');
+      return this.readDpi(device); });
   }
   async writeDpi(device, dpi) {
     const value = validateDpi(dpi);
@@ -88,7 +118,9 @@ class Hardware {
   async applyDpi(id, input) {
     const value = validateDpi(input);
     return this.serialize(async () => {
-      const device = await this.target(id), before = await this.readDpi(device);
+      const device = await this.target(id);
+      if (device.productId !== 0x0067) throw new Error('DPI control is currently available for Trinity.');
+      const before = await this.readDpi(device);
       const file = this.backupFile(device);
       const backup = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : { version: 1, deviceId: device.id, created: new Date().toISOString(), entries: [] };
       if (backup.deviceId !== device.id || !Array.isArray(backup.entries)) throw new Error('Invalid original-settings backup.');
@@ -118,12 +150,12 @@ class Hardware {
     }
     throw new Error(`Button 0x${entry.source.toString(16)}: ${last.message}`);
   }
-  backupFile(device) { return path.join(this.directory, 'backups', crypto.createHash('sha256').update(device.id).digest('hex').slice(0,24) + '.json'); }
+  backupFile(device) { return path.join(this.directory, 'backups', crypto.createHash('sha256').update(device.productId === 0x00a4 ? `${device.id}:${device.modelId}` : device.id).digest('hex').slice(0,24) + '.json'); }
   async inspect(id, plate = 12) {
     return this.serialize(async () => {
       const device = await this.target(id), bindings = [];
-      if (![7,12].includes(plate)) throw new Error('Choose a 7- or 12-button Trinity plate.');
-      for (let i = 0; i < plate; i++) bindings.push(await this.read(device, 1, (plate === 12 ? 0x40 : 0x50) + i));
+      const driver = driverFor(device);
+      for (const source of sideSources(driver, plate)) bindings.push(await this.read(device, driver.readSlot, source));
       return { bindings, backupAvailable: fs.existsSync(this.backupFile(device)) };
     });
   }
@@ -131,7 +163,9 @@ class Hardware {
     profile = validateProfile(profile);
     const actions = actionsFor(profile);
     return this.serialize(async () => {
-      const device = await this.target(id), before = [];
+      const device = await this.target(id), before = [], driver = driverFor(device);
+      if (profile.model !== (device.modelId ?? device.productId)) throw new Error('This profile does not match the selected mouse.');
+      const slots = driver.slots;
       const file = this.backupFile(device);
       let backup = { version: 1, deviceId: device.id, created: new Date().toISOString(), entries: [] };
       if (fs.existsSync(file)) backup = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -139,20 +173,20 @@ class Hardware {
 
       // Default top controls remain untouched until explicitly rebound. Returning to
       // Default later restores the original value of each slot, not a guessed factory value.
-      for (const c of topControls) if ((profile.topBindings?.[c.id]?.type || 'default') === 'default' && backup.entries.some(e=>e.source===c.source)) {
-        actions.push({source:c.source,original:true});
+      for (const c of topControls) if ((profile.topBindings?.[c.id]?.type || 'default') === 'default' && backup.entries.some(e=>e.source===driver.top[c.id])) {
+        actions.push({source:driver.top[c.id],original:true});
       }
-      for (const slot of [2,1]) for (const binding of actions) before.push({slot,source:binding.source,action:await this.read(device,slot,binding.source)});
+      for (const slot of slots) for (const binding of actions) before.push({slot,source:binding.source,action:await this.read(device,slot,binding.source)});
       const targetAction = (binding, slot) => binding.original ? backup.entries.find(e=>e.source===binding.source && e.slot===slot)?.action : binding.action;
-      if (actions.some(b=>[2,1].some(slot=>!targetAction(b,slot)))) throw new Error('Incomplete top-button backup. Restore the original backup before applying.');
+      if (actions.some(b=>slots.some(slot=>!targetAction(b,slot)))) throw new Error('Incomplete top-button backup. Restore the original backup before applying.');
       for (const entry of before) if (!backup.entries.some(e => e.slot === entry.slot && e.source === entry.source)) backup.entries.push(entry);
       atomicWrite(file, backup); // Durable original snapshot before the first device mutation.
       try {
-        // Trinity requires a pending-slot write before the corresponding active-slot write,
-        // even when the pending slot already has the target value.
-        const changed = actions.filter(binding => [2,1].some(slot =>
+        // Each adapter chooses its storage layers and write order. Trinity stages
+        // pending before active; modern Pro models change only the live layer.
+        const changed = actions.filter(binding => slots.some(slot =>
           !same(before.find(e => e.slot === slot && e.source === binding.source).action, targetAction(binding,slot))));
-        for (const slot of [2,1]) for (const binding of changed) await this.write(device, { slot, source:binding.source,action:targetAction(binding,slot) });
+        for (const slot of slots) for (const binding of changed) await this.write(device, { slot, source:binding.source,action:targetAction(binding,slot) });
 
       } catch (error) {
         const failures = [];
