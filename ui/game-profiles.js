@@ -18,6 +18,7 @@ async function refreshGames() {
   finally { scanningGames=false; if(page==='profiles')renderProfiles(); }
 }
 function renderProfiles() {
+  if(!draft){renderEmptyWorkspace();return;}
   if(profileTab==='standard') {
     renderStandardProfiles(); $('#content').insertAdjacentHTML('afterbegin',profileTabs()); wireProfileTabs(); return;
   }

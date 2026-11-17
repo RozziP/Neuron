@@ -1,0 +1,788 @@
+[
+  {
+    "productId": 19,
+    "name": "Orochi 2011",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 21,
+    "name": "Naga",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 22,
+    "name": "DeathAdder 3.5G",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 31,
+    "name": "Naga Epic",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 32,
+    "name": "Abyssus 1800",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 36,
+    "name": "Mamba 2012 · wired",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 37,
+    "name": "Mamba 2012 · receiver",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 41,
+    "name": "DeathAdder 3.5G Black",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 46,
+    "name": "Naga 2012",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 47,
+    "name": "Imperator 2012",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 50,
+    "name": "Ouroboros",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 52,
+    "name": "Taipan",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 54,
+    "name": "Naga Hex (Red)",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 55,
+    "name": "DeathAdder 2013",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 56,
+    "name": "DeathAdder 1800",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 57,
+    "name": "Orochi 2013",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 62,
+    "name": "Naga Epic Chroma · wired",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 63,
+    "name": "Naga Epic Chroma · receiver",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 64,
+    "name": "Naga 2014",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 65,
+    "name": "Naga Hex",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 66,
+    "name": "Abyssus",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 67,
+    "name": "DeathAdder Chroma",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 68,
+    "name": "Mamba Chroma · wired",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 69,
+    "name": "Mamba Chroma · receiver",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 70,
+    "name": "Mamba Tournament Edition",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 72,
+    "name": "Orochi · wired",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 76,
+    "name": "Diamondback Chroma",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 79,
+    "name": "DeathAdder 2000",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 80,
+    "name": "Naga Hex V2",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 83,
+    "name": "Naga Chroma",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 84,
+    "name": "DeathAdder 3500",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 89,
+    "name": "Lancehead · wired",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 90,
+    "name": "Lancehead · receiver",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 91,
+    "name": "Abyssus V2",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 92,
+    "name": "DeathAdder Elite",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 94,
+    "name": "Abyssus 2000",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 95,
+    "name": "DeathAdder 2000 · alternate",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 96,
+    "name": "Lancehead Tournament Edition",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 98,
+    "name": "Atheris · receiver",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 100,
+    "name": "Basilisk",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 101,
+    "name": "Basilisk Essential",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 103,
+    "name": "Naga Trinity",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 106,
+    "name": "Abyssus Elite (D.Va Edition)",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 107,
+    "name": "Abyssus Essential",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 108,
+    "name": "Mamba Elite",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 110,
+    "name": "DeathAdder Essential",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 111,
+    "name": "Lancehead Wireless · receiver",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 112,
+    "name": "Lancehead Wireless · wired",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 113,
+    "name": "DeathAdder Essential (White Edition)",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 114,
+    "name": "Mamba Wireless · receiver",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 115,
+    "name": "Mamba Wireless · wired",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 119,
+    "name": "Pro Click · receiver",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 120,
+    "name": "Viper",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 122,
+    "name": "Viper Ultimate · wired",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 123,
+    "name": "Viper Ultimate · receiver",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 124,
+    "name": "DeathAdder V2 Pro · wired",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 125,
+    "name": "DeathAdder V2 Pro · receiver",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 128,
+    "name": "Pro Click · wired",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 131,
+    "name": "Basilisk X HyperSpeed",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 132,
+    "name": "DeathAdder V2",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 133,
+    "name": "Basilisk V2",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 134,
+    "name": "Basilisk Ultimate",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 136,
+    "name": "Basilisk Ultimate · receiver",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 138,
+    "name": "Viper Mini",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 140,
+    "name": "DeathAdder V2 Mini",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 141,
+    "name": "Naga Left Handed Edition 2020",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 143,
+    "name": "Naga Pro · wired",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 144,
+    "name": "Naga Pro · receiver",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 145,
+    "name": "Viper 8KHz",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 146,
+    "name": "Naga Pro · Bluetooth",
+    "bluetooth": true,
+    "batteryExpected": true
+  },
+  {
+    "productId": 148,
+    "name": "Orochi V2 · receiver",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 149,
+    "name": "Orochi V2 (Bluetooth)",
+    "bluetooth": true,
+    "batteryExpected": true
+  },
+  {
+    "productId": 150,
+    "name": "Naga X",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 152,
+    "name": "DeathAdder Essential (2021)",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 153,
+    "name": "Basilisk V3",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 154,
+    "name": "Pro Click Mini · receiver",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 156,
+    "name": "DeathAdder V2 X HyperSpeed",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 158,
+    "name": "Viper Mini SE · wired",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 159,
+    "name": "Viper Mini SE · receiver",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 161,
+    "name": "DeathAdder V2 Lite",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 163,
+    "name": "Cobra",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 165,
+    "name": "Viper V2 Pro · wired",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 166,
+    "name": "Viper V2 Pro · receiver",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 167,
+    "name": "Naga V2 Pro · wired",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 168,
+    "name": "Naga V2 Pro · receiver",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 169,
+    "name": "Naga V2 Pro · Bluetooth",
+    "bluetooth": true,
+    "batteryExpected": true
+  },
+  {
+    "productId": 170,
+    "name": "Basilisk V3 Pro · wired",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 171,
+    "name": "Basilisk V3 Pro · receiver",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 172,
+    "name": "Basilisk V3 Pro · Bluetooth",
+    "bluetooth": true,
+    "batteryExpected": true
+  },
+  {
+    "productId": 175,
+    "name": "Cobra Pro · wired",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 176,
+    "name": "Cobra Pro · receiver",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 178,
+    "name": "DeathAdder V3",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 180,
+    "name": "Naga V2 HyperSpeed · receiver",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 182,
+    "name": "DeathAdder V3 Pro · wired",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 183,
+    "name": "DeathAdder V3 Pro · receiver",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 184,
+    "name": "Viper V3 HyperSpeed",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 185,
+    "name": "Basilisk V3 X HyperSpeed",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 186,
+    "name": "Basilisk V3 X HyperSpeed · Bluetooth",
+    "bluetooth": true,
+    "batteryExpected": true
+  },
+  {
+    "productId": 190,
+    "name": "DeathAdder V4 Pro · wired",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 191,
+    "name": "DeathAdder V4 Pro · receiver",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 192,
+    "name": "Viper V3 Pro · wired",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 193,
+    "name": "Viper V3 Pro · receiver",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 194,
+    "name": "DeathAdder V3 Pro · wired",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 195,
+    "name": "DeathAdder V3 Pro · receiver",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 196,
+    "name": "DeathAdder V3 HyperSpeed · wired",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 197,
+    "name": "DeathAdder V3 HyperSpeed · receiver",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 199,
+    "name": "Pro Click V2 Vertical Edition · wired",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 200,
+    "name": "Pro Click V2 Vertical Edition · receiver",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 203,
+    "name": "Basilisk V3 35K",
+    "bluetooth": false,
+    "batteryExpected": false
+  },
+  {
+    "productId": 204,
+    "name": "Basilisk V3 Pro 35K · wired",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 205,
+    "name": "Basilisk V3 Pro 35K · receiver",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 208,
+    "name": "Pro Click V2 · wired",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 209,
+    "name": "Pro Click V2 · receiver",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 211,
+    "name": "Basilisk Mobile · wired",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 212,
+    "name": "Basilisk Mobile · receiver",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 214,
+    "name": "Basilisk V3 Pro 35K Phantom Green Edition · wired",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 215,
+    "name": "Basilisk V3 Pro 35K Phantom Green Edition · receiver",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 216,
+    "name": "Basilisk V3 Pro 35K Phantom Green · Bluetooth",
+    "bluetooth": true,
+    "batteryExpected": true
+  },
+  {
+    "productId": 218,
+    "name": "Cobra HyperSpeed",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 219,
+    "name": "Cobra HyperSpeed Receiver",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 222,
+    "name": "Viper V3 Pro SE · wired",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 223,
+    "name": "Viper V3 Pro SE · receiver",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 224,
+    "name": "Orochi V2 2026 · receiver",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 229,
+    "name": "Viper V4 Pro · wired",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 230,
+    "name": "Viper V4 Pro · receiver",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 231,
+    "name": "Naga V3 Pro · wired",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 232,
+    "name": "Naga V3 Pro · receiver",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 233,
+    "name": "Naga V3 Pro · Bluetooth",
+    "bluetooth": true,
+    "batteryExpected": true
+  },
+  {
+    "productId": 234,
+    "name": "Basilisk V4 HyperSpeed · receiver",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 235,
+    "name": "Basilisk V4 HyperSpeed · wired",
+    "bluetooth": false,
+    "batteryExpected": true
+  },
+  {
+    "productId": 236,
+    "name": "Basilisk V4 HyperSpeed · Bluetooth",
+    "bluetooth": true,
+    "batteryExpected": true
+  }
+]

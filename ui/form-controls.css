@@ -1,0 +1,93 @@
+/* Shared control sizing and breathing room below the sticky page header. */
+.button,
+.button.primary,
+.head-actions .button,
+.head-actions .button.primary {
+  min-height: 40px;
+  padding: 10px 15px;
+  line-height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.head-actions { align-items: center; flex-wrap: wrap; }
+.head-actions > .button, .head-actions > .button.primary { min-height: 44px; }
+.profile-select {
+  height: 44px;
+  min-width: 155px;
+  max-width: 240px;
+  padding: 5px 11px;
+  justify-content: center;
+}
+.profile-select > span { line-height: 10px; margin-bottom: 2px; }
+.profile-select select { min-height: 20px; line-height: 20px; color: var(--text); }
+.profile-select:has(select:focus-visible) { outline: 2px solid var(--mint); outline-offset: 3px; }
+.profile-select select:focus-visible { outline: none; }
+#content { padding-top: 20px; }
+#notice { margin: 20px 0 0; }
+.page-tools { min-height: 40px; margin-bottom: 18px; flex-wrap: wrap; }
+.page-tools p { margin: 0; line-height: 1.6; }
+.tool-actions { align-items: center; flex-wrap: wrap; gap: 10px; }
+.macro-page-tools { justify-content: flex-end; }
+.manual-mouse-form { gap: 12px; }
+.manual-mouse-form .field { min-width: 0; margin: 0; }
+.manual-mouse-form .field select { min-height: 40px; padding: 10px 12px; line-height: 18px; }
+.manual-mouse-form .help { margin-top: 2px; }
+#content > .card + .card { margin-top: 18px; }
+
+/* Keep native select semantics, keyboard navigation, and type-ahead. */
+@supports (appearance: base-select) {
+  select, select::picker(select) { appearance: base-select; }
+  select { align-items: center; gap: 12px; cursor: pointer; }
+  select:disabled { cursor: not-allowed; opacity: .5; }
+  select::picker-icon { color: var(--muted); flex-shrink: 0; }
+  select:open::picker-icon { rotate: 180deg; }
+  select::picker(select) {
+    background: var(--panel2);
+    color: var(--text);
+    border: 1px solid #3b4654;
+    border-radius: 8px;
+    padding: 5px;
+    margin-top: 6px;
+    max-height: min(320px, 60vh);
+    overflow-y: auto;
+    box-shadow: 0 12px 32px #0008;
+    scrollbar-width: thin;
+    scrollbar-color: #35404c transparent;
+  }
+  select option {
+    min-height: 34px;
+    padding: 8px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    line-height: 18px;
+    overflow-wrap: anywhere;
+    cursor: pointer;
+  }
+  select option:checked { background: #273622; color: #d0f1b6; }
+  select option:hover, select option:focus { background: #35432e; color: var(--text); outline: none; }
+  select option::checkmark { color: var(--mint); }
+  .profile-select select::picker(select) { min-width: 180px; }
+}
+
+/* The details action belongs to the same row without nesting buttons. */
+.mouse-workspace-row { position: relative; flex-shrink: 0; border: 1px solid transparent; border-radius: 7px; }
+.mouse-workspace-row:has(.selected) { background: #222d23; border-color: #526b42; }
+.mouse-workspace-row .mouse-workspace { border: 0; background: transparent; min-height: 60px; }
+.mouse-workspace-row .status-dot { flex-shrink: 0; align-self: flex-start; margin-top: 5px; }
+.identity-entry-action {
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #a4b59a;
+}
+.identity-entry-action span { display: grid; place-items: center; width: 15px; height: 15px; border: 1px solid currentColor; border-radius: 50%; font-size: 10px; font-weight: 600; }
+.identity-entry-action:hover { background: #ffffff14; color: var(--mint); }

@@ -23,14 +23,20 @@ function functionBlock(action) {
   }
   return [action.type, action.params.length, ...action.params, ...Array(5-action.params.length).fill(0)];
 }
-function bindingPacket(slot, source, action) { return packet(0x0c, [slot, source, 0, ...functionBlock(action)]); }
-function bindingFromReply(args, slot, source, preserveRaw = false) {
+function bindingPacket(slot, source, action, size=10, transaction=0x1f) {
+  if(!Number.isInteger(source)||source<1||source>255)throw new Error('Invalid physical button source.');
+  return packet(0x0c, [slot, source, 0, ...functionBlock(action)],2,size,transaction);
+}
+function bindingFromReply(args, slot, source, preserveRaw = false, readLayout = 'extended') {
   if (args.length < 10) throw new Error('Incomplete button mapping response.');
-  if (args[0] !== slot || args[1] !== source || args[4] > 5) throw new Error('Unexpected button mapping response.');
+  // Basilisk V3 X firmware can omit the layer byte. A nonzero byte here is
+  // then the function class, not the layer echo. Do not shift keyboard data.
+  const offset = readLayout === 'layer-or-compact' && args[2] !== 0 ? 2 : 3;
+  if (args[0] !== slot || args[1] !== source || args[offset+1] > 5) throw new Error('Unexpected button mapping response.');
   // Native length-1 keyboard blocks still contain the key in the SECOND data
   // byte. Preserve all seven function bytes, including unknown actions. Byte 2
   // in a reply is not a reliable layer echo; normal-layer restores always use 0.
-  return { type: args[3], params: [...args.subarray(5, 5 + args[4])],
-    ...(preserveRaw ? {raw:[...args.subarray(3,10)]} : {}) };
+  return { type: args[offset], params: [...args.subarray(offset+2, offset+2 + args[offset+1])],
+    ...(preserveRaw ? {raw:[...args.subarray(offset,offset+7)]} : {}) };
 }
 module.exports = { checksum, packet, decode, bindingPacket, bindingFromReply, functionBlock };

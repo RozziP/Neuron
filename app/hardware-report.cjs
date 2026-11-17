@@ -3,6 +3,7 @@ const hex = value => value.toString(16).padStart(4, '0');
 const integer = (value, min, max) => Number.isInteger(value) && value >= min && value <= max;
 const clean = value => typeof value === 'string' ? value.replace(/[^\p{L}\p{N} ._()+/-]/gu, '').trim().slice(0, 100) : '';
 const modelFor = (vendorId, productId) => vendorId === 0x1532 ? catalog.find(m => m.productId === productId) : null;
+const hasSupportedDriver = model => !!model?.driver && model.driverValidation !== 'best-guess';
 const reportKey = report => `${hex(report.vendorId)}:${hex(report.productId)}`;
 function normalizeConfirmation(input) {
   if (!input || input.version !== 1 || !integer(input.vendorId,1,65535) || !integer(input.productId,1,65535) ||
@@ -12,7 +13,7 @@ function normalizeConfirmation(input) {
 function supportedConfirmation(input) {
   const confirmation = normalizeConfirmation(input), model = modelFor(confirmation.vendorId,confirmation.productId);
   const name = confirmation.modelName.toLowerCase().replace(/^razer\s+/, '').replace(/\s+/g,' ');
-  return model?.driver && name === clean(model.name).toLowerCase().replace(/\s+/g,' ') ? model : null;
+  return hasSupportedDriver(model) && name === clean(model.name).toLowerCase().replace(/\s+/g,' ') ? model : null;
 }
 const unique = (items, limit) => [...new Map(items.map(item => [JSON.stringify(item), item])).values()]
   .sort((a,b) => JSON.stringify(a) < JSON.stringify(b) ? -1 : JSON.stringify(a) > JSON.stringify(b) ? 1 : 0).slice(0, limit);
@@ -46,7 +47,7 @@ function identification(input, model, vendorId, productId) {
 function normalizeReport(input) {
   if (!input || ![1,2].includes(input.version) || !integer(input.vendorId, 1, 65535) || !integer(input.productId, 1, 65535)) throw new Error('Invalid hardware IDs.');
   const model = modelFor(input.vendorId, input.productId);
-  if (model?.driver) throw new Error('This model already has a driver.');
+  if (hasSupportedDriver(model)) throw new Error('This model already has a driver.');
   if (!Array.isArray(input.interfaces) || !input.interfaces.length || input.interfaces.length > 32) throw new Error('Invalid interfaces.');
   const interfaces = input.interfaces.map(item => {
     if (!item || !integer(item.interface, -1, 255) || !integer(item.usagePage, 0, 65535) || !integer(item.usage, 0, 65535)) throw new Error('Invalid HID interface.');
@@ -96,7 +97,7 @@ function collectReports(records, system) {
   for (const group of groups.values()) {
     const labels = unique(group.map(d => ({product:clean(d.product),manufacturer:clean(d.manufacturer),release:integer(d.release,0,65535)?d.release:null})),32);
     const d = {...group[0], ...labels[0]}, model = modelFor(d.vendorId, d.productId);
-    if (model?.driver || (!model && !group.some(i => i.usagePage === 1 && i.usage === 2))) continue;
+    if (hasSupportedDriver(model) || (!model && !group.some(i => i.usagePage === 1 && i.usage === 2))) continue;
     try {
       reports.push(normalizeReport({ ...system, version: 2, vendorId: d.vendorId, productId: d.productId,
         model: d.product, manufacturer: d.manufacturer, release: d.release,

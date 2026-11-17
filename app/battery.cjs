@@ -19,7 +19,7 @@ class BatteryMonitor {
     const ids = new Set(devices.map(d => d.id));
     for (const id of this.cache.keys()) if (!ids.has(id)) this.cache.delete(id);
     for (const device of devices) {
-      if (device.support === 'recognition-only' || !batteryModels.has(device.modelId ?? device.productId)) continue;
+      if (device.support === 'recognition-only' || !hasBattery(device)) continue;
       const previous = this.cache.get(device.id);
       if (previous && now - previous.checkedAt < 30000) continue;
       let value;
@@ -30,11 +30,16 @@ class BatteryMonitor {
   }
   status(device) {
     if (device.support === 'recognition-only') return 'Receiver detected · Battery unavailable';
-    if (!batteryModels.has(device.modelId ?? device.productId)) return 'Wired · no battery';
+    if (!hasBattery(device)) return 'Wired · no battery';
     const battery = this.cache.get(device.id);
     if (!battery) return 'Reading battery…';
     if (battery.level === null) return 'Battery unavailable';
     return `Battery ${battery.level}%${battery.charging ? ' · Charging' : battery.charging === null ? ' · Charging status unavailable' : ''}`;
   }
 }
-module.exports = { batteryModels, batteryPacket, batteryFromReply, BatteryMonitor };
+function hasBattery(device) {
+  if(device.vendorId===0x3554)return device.modelId===0xf55d && device.modelVerified;
+  const pid=device.modelId ?? device.productId;
+  return batteryModels.has(pid) || require('./razer-devices.json').some(d=>d.productId===pid && d.batteryExpected);
+}
+module.exports = { hasBattery, batteryModels, batteryPacket, batteryFromReply, BatteryMonitor };

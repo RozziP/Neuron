@@ -16,3 +16,6 @@
 #macro-picker{width:min(520px,90vw)}#macro-picker-list{max-height:55vh;overflow-y:auto;margin:16px 0}
 #macro-picker-list .macro-list-item{border-color:var(--border);overflow-wrap:anywhere}
 @media(max-width:1190px){.macro-meta{grid-template-columns:1fr}}
+
+.side-control-keys[data-plate="16"] { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.top-control-group[hidden] { display: none; }

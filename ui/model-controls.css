@@ -1,0 +1,27 @@
+/* Keep labels visible as model-specific controls grow beyond the Naga layout. */
+.top-control-keys{grid-template-columns:repeat(3,minmax(66px,1fr));grid-template-rows:repeat(3,minmax(60px,auto));grid-auto-rows:minmax(62px,auto);gap:8px;max-width:300px}
+.top-control-key .control-name{display:block;font-size:10px;white-space:normal;text-align:center;line-height:1.25}
+.top-control-key .key-label{display:block;font-size:9px}
+.control-dpi-up,.control-dpi-down{grid-column:auto;grid-row:auto}
+.control-tilt-left{grid-column:1;grid-row:4}.control-tilt-right{grid-column:3;grid-row:4}
+.control-middle .control-name,.control-wheel-up .control-name,.control-wheel-down .control-name{display:block;font-size:9px}
+.fixed-controls{padding:16px 20px;border-top:1px solid var(--border);font-size:12px}
+.fixed-controls>strong{display:block;color:var(--muted);margin-bottom:8px}
+.fixed-controls>div{display:flex;flex-direction:column;gap:4px;padding:8px 0}
+.fixed-controls span{color:var(--muted);line-height:1.5}
+.control-readback{font-size:11px;margin-top:12px;line-height:1.6;overflow-wrap:anywhere}
+.side-control-keys[data-plate='4']{grid-template-columns:repeat(2,58px)}
+.control-group[hidden]{display:none}
+/* Trinity wheel tilt sits beside the wheel press, between the primary clicks. */
+.top-control-keys.trinity-wheel-layout{width:300px;max-width:100%;grid-template-columns:minmax(0,1.5fr) repeat(3,minmax(0,1fr)) minmax(0,1.5fr);grid-template-rows:minmax(60px,auto) minmax(84px,auto) minmax(60px,auto)}
+.trinity-wheel-layout .control-left{grid-column:1}
+.trinity-wheel-layout .control-right{grid-column:5}
+.trinity-wheel-layout .control-wheel-up{grid-column:2/5;grid-row:1}
+.trinity-wheel-layout .control-tilt-left{grid-column:2;grid-row:2}
+.trinity-wheel-layout .control-middle{grid-column:3;grid-row:2}
+.trinity-wheel-layout .control-tilt-right{grid-column:4;grid-row:2}
+.trinity-wheel-layout .control-wheel-down{grid-column:2/5;grid-row:3}
+.trinity-wheel-layout .control-dpi-up{grid-column:2/5;grid-row:4}
+.trinity-wheel-layout .control-dpi-down{grid-column:2/5;grid-row:5}
+.trinity-wheel-layout .control-tilt-left .control-name,.trinity-wheel-layout .control-tilt-right .control-name{font-size:9px}
+@media(max-width:1190px){.top-control-keys{grid-template-columns:repeat(3,minmax(52px,1fr));gap:5px}.top-control-key .control-name{font-size:9px}.editable-controls{gap:15px}.side-control-keys[data-plate='4']{grid-template-columns:repeat(2,46px)}}

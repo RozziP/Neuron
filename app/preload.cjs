@@ -1,6 +1,9 @@
 const { contextBridge, ipcRenderer } = require('electron');
-const call = async (name, ...args) => { const response = await ipcRenderer.invoke(name, ...args); if (!response.ok) throw new Error(response.error); return response.result; };
+let mouseWorkspaceKey = null;
+ipcRenderer.on('state', (_event,state) => { mouseWorkspaceKey=state.selectedMouse?.key || null; });
+const call = async (name, ...args) => { const response = await ipcRenderer.invoke(name, {workspaceKey:mouseWorkspaceKey,args}); if (!response.ok) throw new Error(response.error); if(response.result?.selectedMouse)mouseWorkspaceKey=response.result.selectedMouse.key; return response.result; };
 contextBridge.exposeInMainWorld('neuron', {
+  selectMouse: key => call('workspace:select', key),
   updates: () => call('updates:get'), checkUpdates: () => call('updates:check'), openUpdate: () => call('updates:open'),
   onUpdates: callback => { ipcRenderer.on('updates', (_event, status) => callback(status)); },
   games: () => call('games:get'), scanGames: () => call('games:scan'), addGame: id => call('games:add',id),

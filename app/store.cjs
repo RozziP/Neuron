@@ -4,14 +4,16 @@ const { randomUUID } = require('node:crypto');
 const { parseChord } = require('./keys.cjs');
 
 const { topControls, mouseActions, defaultTopBindings, macroTriggers } = require('./controls.cjs');
-const defaults = ['1','2','3','4','5','6','7','8','9','0','-','='];
+const {layoutFor,devices:razerModels} = require('./razer-layouts.cjs');
+const defaults = ['1','2','3','4','5','6','7','8','9','0','-','=','[',']','\\','/'];
 function newProfile(name = 'Default', model = 0x0067, plate = 12) {
-  return { id: randomUUID(), name, model, plate, executable: '', bindings: Array.from({ length: plate }, (_, index) => ({ type: 'key', value: defaults[index] })), topBindings: defaultTopBindings(), macros: [] };
+  const keepOriginal=razerModels.some(d=>d.productId===model&&!d.name.startsWith('Naga'));
+  return { id: randomUUID(), name, model, plate, executable: '', bindings: Array.from({ length: plate }, (_, index) => keepOriginal?{type:'default',value:''}:({ type: 'key', value: defaults[index] })), topBindings: defaultTopBindings(), macros: [] };
 }
 function validateProfile(p) {
   if (!p || typeof p !== 'object' || typeof p.id !== 'string' || !/^[a-z0-9-]{1,80}$/i.test(p.id)) throw new Error('Invalid profile ID.');
   if (typeof p.name !== 'string' || !p.name.trim() || p.name.length > 60) throw new Error('Profile name must be 1–60 characters.');
-  if (!Number.isInteger(p.model) || p.model < 0 || p.model > 65535 || ![2,6,7,12].includes(p.plate)) throw new Error('Invalid device or side plate.');
+  if (!Number.isInteger(p.model) || p.model < 0 || p.model > 65535 || ![0,2,4,6,7,12,16].includes(p.plate) || (p.plate===16 && p.model!==0xf55d) || (p.model===0xf55d && p.plate!==16)) throw new Error('Invalid device or side plate.');
   if (typeof p.executable !== 'string' || (p.executable && !/^[^<>:"/\\|?*\x00-\x1f]{1,100}\.exe$/i.test(p.executable))) throw new Error('Use an executable name, such as Wow.exe.');
   if (!Array.isArray(p.macros) || p.macros.length > 5000) throw new Error('Too many macros.');
   const ids = new Set();
@@ -40,14 +42,16 @@ function validateProfile(p) {
     if (b.type === 'key') { parseChord(b.value); return { type: 'key', value: b.value.trim() }; }
     if (b.type === 'macro' && ids.has(b.value)) return { type: 'macro', value: b.value };
     if (b.type === 'mouse' && Object.hasOwn(mouseActions,b.value)) return {type:'mouse',value:b.value};
-    if (top && b.type === 'default') return {type:'default',value:''};
+    if ((top || layoutFor(p.model)) && b.type === 'default') return {type:'default',value:''};
     if (b.type === 'disabled') return { type: 'disabled', value: '' };
     throw new Error('Every macro binding must reference an existing macro.');
   };
   const bindings = p.bindings.map(b=>validateBinding(b));
   if (p.topBindings !== undefined && (!p.topBindings || typeof p.topBindings !== 'object' || Array.isArray(p.topBindings) || Object.keys(p.topBindings).some(id=>!topControls.some(c=>c.id===id)))) throw new Error('Invalid top-button bindings.');
   const topBindings = Object.fromEntries(topControls.map(c=>[c.id,validateBinding(p.topBindings?.[c.id] || {type:'default'},true)]));
-  if (topBindings.left.type !== 'default' && ![...bindings,...Object.values(topBindings)].some(b=>b.type==='mouse' && b.value==='left')) throw new Error('Assign Left click to another button before rebinding the primary click.');
+  const physical=layoutFor(p.model);
+  const activeTop=physical?Object.keys(physical.top).map(id=>topBindings[id]):Object.values(topBindings);
+  if (topBindings.left.type !== 'default' && ![...bindings,...activeTop].some(b=>b.type==='mouse' && b.value==='left')) throw new Error('Assign Left click to another button before rebinding the primary click.');
   const executablePath = p.executablePath || '', gameId = p.gameId || '', gameName = p.gameName || '';
   if (typeof executablePath !== 'string' || (executablePath && (!path.win32.isAbsolute(executablePath) || !/\.exe$/i.test(executablePath) || path.win32.basename(executablePath).toLowerCase() !== p.executable.toLowerCase()))) throw new Error('Choose a valid game executable path.');
   if (typeof gameId !== 'string' || !/^[a-z0-9-]{0,80}$/i.test(gameId) || typeof gameName !== 'string' || gameName.length > 200 || (gameId && (!gameName || !executablePath))) throw new Error('Invalid game association.');
@@ -65,7 +69,7 @@ function atomicWrite(file, value) {
   fs.renameSync(temp, file);
 }
 class Store {
-  constructor(directory) {
+  constructor(directory, {model=0x0067,plate=12}={}) {
     this.directory = directory; this.file = path.join(directory, 'profiles.json'); this.warning = ''; this.macros = [];
     try {
       const data = JSON.parse(fs.readFileSync(this.file, 'utf8'));
@@ -84,7 +88,7 @@ class Store {
         fs.copyFileSync(this.file, this.file + `.recovery-${Date.now()}`);
         this.warning = 'The profile file was invalid. A recovery copy was kept beside it.';
       }
-      this.macros=[]; this.profiles = [newProfile()]; this.persist();
+      this.macros=[]; this.profiles = [newProfile('Default',model,plate)]; this.persist();
     }
   }
   write(profiles,macros=this.macros) { atomicWrite(this.file,{version:2,macros,profiles:profiles.map(({macros,...p})=>p)}); }

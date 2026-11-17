@@ -29,7 +29,7 @@ test('reported composite receiver is discovered once, without guessing its mouse
   assert.equal(discoverReceivers([...records, records[7]]).length, 1);
   assert.equal(discoverReceivers([...records, { ...records[7], path: 'second-receiver' }]).length, 2);
   assert.deepEqual(discoverReceivers(records.slice(0,7)), []);
-  for (const override of [{vendorId: 0x1532}, {productId: 0xf55e}, {usagePage: 65282}, {usage: 6}, {interface: 1}, {path: ''}])
+  for (const override of [{vendorId: 0x1532}, {productId: 0xf55f}, {usagePage: 65282}, {usage: 6}, {interface: 1}, {path: ''}])
     assert.deepEqual(discoverReceivers([{...records[7], ...override}]), []);
 });
 

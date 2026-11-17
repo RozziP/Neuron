@@ -5,7 +5,7 @@ const delay = ms => new Promise(r => setTimeout(r,ms));
 async function run(window, app, hardware, reporter, updates) {
   const directory = path.dirname(app.getPath('userData')); fs.mkdirSync(directory,{recursive:true});
   const failures=[];
-  window.webContents.on('console-message', event => { if(event.level === 'error') failures.push(event.message); });
+  window.webContents.on('console-message', event => { if(event.level === 'error') failures.push(`${event.message} (${event.sourceId}:${event.lineNumber})`); });
   const js = code => window.webContents.executeJavaScript(`(async () => (${code}))()`);
   const waitFor = async expression => { for(let i=0;i<100;i++) { if(await js(expression)) return; await delay(50); } throw new Error(`UI timeout: ${expression}`); };
   const click = selector => js(`document.querySelector(${JSON.stringify(selector)}).click()`);
@@ -28,7 +28,7 @@ async function run(window, app, hardware, reporter, updates) {
     const openedReleases = [];
     try {
       assert.equal(await js('document.querySelector("#app-version").textContent'), `v${app.getVersion()}`);
-      assert.equal(await js('document.querySelector("#open-update").hidden'), true);
+      assert.equal(await js('document.querySelector("#check-updates").textContent'), 'Check for updates');
       updates.openExternal = async url => { openedReleases.push(url); };
       let finishCheck;
       updates.fetchRelease = () => new Promise(resolve => { finishCheck = resolve; });
@@ -36,22 +36,21 @@ async function run(window, app, hardware, reporter, updates) {
       await waitFor('document.querySelector("#check-updates").disabled');
       while (!finishCheck) await delay(10);
       finishCheck({ ok: true, status: 200, json: async () => ({ tag_name: 'v99.0.0', draft: false, prerelease: false }) });
-      await waitFor('!document.querySelector("#open-update").hidden && !document.querySelector("#check-updates").disabled');
-      assert.equal(await js('document.querySelector("#open-update").textContent'), 'Update to v99.0.0');
+      await waitFor('document.querySelector("#check-updates").textContent === "Update to v99.0.0" && !document.querySelector("#check-updates").disabled');
       window.setSize(1080,730); await screenshot('update-available');
       assert.equal(await js('document.querySelector("#check-updates").getBoundingClientRect().bottom <= innerHeight'), true, 'Update controls should fit in the compact sidebar.');
       window.setSize(1380,900);
-      await click('#open-update');
-      await waitFor('!document.querySelector("#open-update").disabled');
+      await click('#check-updates');
+      await waitFor('!document.querySelector("#check-updates").disabled');
       assert.deepEqual(openedReleases, ['https://github.com/RozziP/Neuron/releases/tag/v99.0.0']);
       updates.fetchRelease = async () => { throw new Error('offline'); };
-      await click('#check-updates');
+      await js('window.neuron.checkUpdates()');
       await waitFor('document.querySelector("#update-status").textContent.includes("connection")');
-      assert.equal(await js('document.querySelector("#open-update").hidden'), false);
+      assert.equal(await js('document.querySelector("#check-updates").textContent'), 'Update to v99.0.0');
       updates.fetchRelease = async () => ({ ok: true, status: 200, json: async () => ({ tag_name: `v${app.getVersion()}`, draft: false, prerelease: false }) });
-      await click('#check-updates');
+      await js('window.neuron.checkUpdates()');
       await waitFor('document.querySelector("#update-status").textContent.includes("up to date")');
-      assert.equal(await js('document.querySelector("#open-update").hidden'), true);
+      assert.equal(await js('document.querySelector("#check-updates").textContent'), 'Check for updates');
     } finally { updates.fetchRelease = originalFetch; updates.openExternal = originalOpen; }
     // Exercise native SendInput only after confirming our own test window has focus.
     const { Bridge } = require('../app/bridge.cjs');
@@ -269,6 +268,9 @@ async function run(window, app, hardware, reporter, updates) {
     const receiverRecord = {vendorId:13652,productId:62813,interface:2,usagePage:1,usage:2,path:'smoke-compx',product:'2.4G Wireless Receiver'};
     const receiver = discoverReceivers([receiverRecord])[0];
     const originalDevices = hardware.devices, realDevices = await hardware.devices();
+    const originalWorkspace=await js('(await window.neuron.state()).selectedMouse.key');
+    const identityTrinity={id:'identity-trinity',vendorId:0x1532,productId:103,name:'Naga Trinity',mappingPlates:[],paths:[]};
+    const selectDevice=async id=>js(`(async()=>{const s=await window.neuron.state();await window.neuron.selectMouse(s.mouseWorkspaces.find(w=>w.deviceId===${JSON.stringify(id)}).key)})()`);
     const originalRecords = hardware.enumerated, originalEnrich = reporter.enrich;
     try {
       hardware.enumerated = [receiverRecord,{vendorId:0x1532,productId:0x0067,product:'Naga Trinity',interface:0,usagePage:1,usage:2,path:'smoke-trinity'}];
@@ -276,20 +278,35 @@ async function run(window, app, hardware, reporter, updates) {
         source:'installed-driver-config',name:'Redragon M990-WL Gaming Mouse',version:'1.0.2.0',vendorId:13652,productId:62813,configuredModelId:48
       }]}});
       await reporter.tick(hardware.enumerated);
-      hardware.devices = async () => [...realDevices.filter(d => d.support !== 'recognition-only'), receiver];
+      hardware.devices = async () => [...realDevices.filter(d => d.support !== 'recognition-only' && !(d.vendorId === receiverRecord.vendorId && d.productId === receiverRecord.productId)), receiver,identityTrinity];
       await click('#scan-devices');
+      await selectDevice(receiver.id);
       await waitFor('document.querySelectorAll(".receiver-device").length===1');
       assert.match(await js('document.querySelector(".receiver-device").textContent'), /3554:F55D/);
       assert.match(await js('document.querySelector(".receiver-device").textContent'), /model is unknown/);
       const identity = '[data-report-key="3554:f55d"]';
+      assert.equal(await js('document.querySelectorAll("#content .identification-card").length'),0);
+      await click('[data-nav="buttons"]');
+      await click('[data-identity-key="3554:f55d"]');
+      assert.equal(await js('document.querySelector("#identity-dialog").open'),true);
+      assert.equal(await js('document.querySelector("#page-title").textContent'),'Button mapping.');
+      assert.equal(await js('document.querySelectorAll(".identification-card").length'),1);
       await waitFor(`!!document.querySelector(${JSON.stringify(identity+' .identity-yes')})`);
       assert.match(await js(`document.querySelector(${JSON.stringify(identity+' h2')}).textContent`),/Is your mouse a Redragon M990-WL/);
       await screenshot('identify-mouse','[data-report-key="3554:f55d"]');
       await click('[data-report-key="3554:f55d"] .identity-yes');
       await waitFor('(await window.neuron.state()).hardwareReports.find(r=>r.key==="3554:f55d").status === "driver-needed"');
       assert.equal(await js('(await window.neuron.state()).hardwareReports.find(r=>r.key==="3554:f55d").supported'),false);
+      await click('#identity-dialog .identity-dialog-head button');
+      await waitFor('document.activeElement.dataset.identityKey === "3554:f55d"');
+      await selectDevice(identityTrinity.id);
+      await click('[data-identity-key="1532:0067"]');
       await click('[data-report-key="1532:0067"] .identity-yes');
       await waitFor('(await window.neuron.state()).hardwareReports.find(r=>r.key==="1532:0067").status === "local-only"');
+      await click('#identity-dialog .identity-dialog-head button');
+      await waitFor('document.activeElement.dataset.identityKey === "1532:0067"');
+      await selectDevice(receiver.id);
+      await click('[data-identity-key="3554:f55d"]');
       assert.match(await js(`document.querySelector(${JSON.stringify(identity)}).textContent`),/issue stays open/);
       await js(`document.querySelector(${JSON.stringify(identity+' details')}).open=true`);
       await input('[data-report-key="3554:f55d"] .identity-name','Redragon M990-WL');
@@ -300,12 +317,17 @@ async function run(window, app, hardware, reporter, updates) {
       await js(`document.querySelector(${JSON.stringify(identity+' .identity-form')}).requestSubmit()`);
       await waitFor('(await window.neuron.state()).hardwareReports.find(r=>r.key==="3554:f55d").confirmedModel === "Redragon M990-WL"');
       window.setSize(1080,730);await screenshot('identify-mouse-confirmed','[data-report-key="3554:f55d"]');window.setSize(1380,900);
+      window.webContents.sendInputEvent({type:'keyDown',keyCode:'Escape'});
+      window.webContents.sendInputEvent({type:'keyUp',keyCode:'Escape'});
+      await waitFor('!document.querySelector("#identity-dialog").open');
+      assert.equal(await js('document.querySelector("#page-title").textContent'),'Button mapping.');
+      await click('[data-nav="devices"]');
       hardware.devices = async () => [receiver];
       await click('#scan-devices');
-      await waitFor('document.querySelector("#inspect-device").disabled');
-      assert.equal(await js('document.querySelector("#restore-device").disabled && document.querySelector("#apply").disabled'),true);
+      assert.equal(await js('(await window.neuron.state()).profiles.length'),0);
+      assert.equal(await js('document.querySelector(".head-actions").hidden'),true);
       assert.equal(await js('document.querySelector("#device-select")'),null);
-      assert.match(await js('document.querySelector("#notice").textContent'), /receiver is detected/);
+      assert.match(await js('document.querySelector(".receiver-device").textContent'), /model is unknown/);
       await screenshot('compx-receiver');
       hardware.devices = async () => [];
       await click('#scan-devices');
@@ -314,6 +336,7 @@ async function run(window, app, hardware, reporter, updates) {
       hardware.devices = originalDevices;
       hardware.enumerated = originalRecords; reporter.enrich = originalEnrich; reporter.observe(originalRecords);
       await js('window.neuron.scan()');
+      await js(`window.neuron.selectMouse(${JSON.stringify(originalWorkspace)})`);
     }
     // Model selection and experimental dock controls through real IPC. All
     // device operations here are simulated; never write to an attached mouse.
@@ -326,8 +349,9 @@ async function run(window, app, hardware, reporter, updates) {
       hardware.apply = async (id,profile) => { applied.push({id,model:profile.model}); return {message:'Simulated dock mappings applied.'}; };
       hardware.restore = async () => ({message:'Simulated dock mappings restored.'});
       await click('#scan-devices');
+      await selectDevice(dock.id);
       await waitFor('!!document.querySelector(".receiver-model-form")');
-      assert.match(await js('document.querySelector(".receiver-device").textContent'),/Which mouse is paired/);
+      assert.match(await js('document.querySelector(".receiver-device").textContent'),/which mouse is paired/i);
       await change('.receiver-model','168');
       await js('document.querySelector(".receiver-model-form").requestSubmit()');
       await waitFor('(await window.neuron.state()).preferredMouseModel === 168 && !document.querySelector("#apply").disabled');

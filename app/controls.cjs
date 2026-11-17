@@ -9,6 +9,8 @@ const topControls = [
   {id:'dpi-up',name:'DPI up',short:'+',source:0x0b},
   {id:'dpi-down',name:'DPI down',short:'−',source:0x0c}
 ];
+for(const [id,[name,short]] of Object.entries(require('./razer-layouts.cjs').defs))
+  if(!topControls.some(c=>c.id===id))topControls.push({id,name,short});
 const mouseActions = {
   left:{name:'Left click',type:1,params:[1]}, right:{name:'Right click',type:1,params:[2]},
   middle:{name:'Middle click',type:1,params:[3]}, back:{name:'Back',type:1,params:[4]},

@@ -25,6 +25,8 @@ function syncKeyboardHighlights() {
   document.querySelectorAll('[data-key-code]').forEach(button=>button.classList.toggle('pressed',keyboardPressed.has(button.dataset.keyCode)));
   if ($('#keyboard-feedback')) $('#keyboard-feedback').textContent = keyboardPressed.size ? 'Held: '+[...keyboardPressed].map(code=>keyboardBinding(code,code.replace(/^Key|^Digit/,''))).join(' + ') : 'No keys held · highlights work while Neuron has focus';
 }
+// The shared UI state in app.js must exist before focus or key events run.
+document.addEventListener('DOMContentLoaded', () => {
 document.addEventListener('keydown', event => {
   if (page !== 'buttons') return;
   keyboardPressed.add(event.code); syncKeyboardHighlights();
@@ -32,3 +34,4 @@ document.addEventListener('keydown', event => {
 }, true);
 document.addEventListener('keyup', event => { keyboardPressed.delete(event.code); syncKeyboardHighlights(); }, true);
 window.addEventListener('blur', () => { keyboardPressed.clear(); syncKeyboardHighlights(); });
+}, { once: true });

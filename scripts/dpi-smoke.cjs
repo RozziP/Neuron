@@ -26,10 +26,11 @@ async function run(window, app, hardware) {
     await wait('!!document.querySelector(".mouse-key")');
     const { validateDpi } = require('../app/dpi.cjs');
     let sensitivity = { x: 1800, y: 1800 }, writes = 0;
-    hardware.devices = async () => [{ id: 'dpi-smoke', productId: 103, name: 'Naga Trinity', paths: [], connected: true }];
+    hardware.devices = async () => [{ id: 'dpi-smoke', vendorId: 0x1532, productId: 103, name: 'Naga Trinity', paths: [], connected: true }];
     hardware.inspectDpi = async () => ({ ...sensitivity });
     hardware.applyDpi = async (_id, value) => { sensitivity = validateDpi(value); writes++; return { ...sensitivity }; };
     await js('await window.neuron.scan()');
+    await js('const s=await window.neuron.state(); await window.neuron.selectMouse(s.mouseWorkspaces.find(w=>w.deviceId==="dpi-smoke").key);');
     await click('[data-nav="dpi"]');
     await wait('document.querySelector(".dpi-device-value strong").textContent === "1,800"');
     assert.equal(await js('return document.querySelector(".head-actions").hidden'), true);

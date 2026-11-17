@@ -14,24 +14,25 @@ function renderButtons() {
   $('#content').innerHTML = `
     <div class="mapping-layout">
       <section class="card">
-        <div class="card-head"><div><h2>1. Choose a mouse control</h2><p>Razer ${esc(nameOf(draft.model))} · every shape below is editable</p></div><span class="pill ${currentDevice() ? '' : 'muted'}">${currentDevice() ? '● CONNECTED' : 'OFFLINE'}</span></div>
+        <div class="card-head"><div><h2>1. Choose a mouse control</h2><p>${esc(brandOf(draft.model))} ${esc(nameOf(draft.model))} · ${mouseModel()?.driverValidation==='best-guess'?'best-guess layout · unverified':'model-specific controls'}</p></div><span class="pill ${currentDevice() ? '' : 'muted'}">${currentDevice() ? '● CONNECTED' : 'OFFLINE'}</span></div>
         ${renderControlLayout()}
-        <div class="device-toolbar"><label>Attached side plate <select id="plate" aria-label="Side plate">${[2,6,7,12].map(n => `<option value="${n}" ${n === draft.plate ? 'selected' : ''}>${n} buttons</option>`).join('')}</select></label><span>Editing <strong>${esc(selectionName())}</strong></span></div>
+        <div class="device-toolbar"><label>Side buttons <select id="plate" aria-label="Side plate">${(mouseModel()?.physicalPlates||mouseModel()?.mappingPlates||[draft.plate]).map(n => `<option value="${n}" ${n === draft.plate ? 'selected' : ''}>${n} buttons</option>`).join('')}</select></label><span>Editing <strong>${esc(selectionName())}</strong></span></div>
       </section>
       <section class="card binding-editor">
         <div class="editor-kicker">2. CHOOSE WHAT IT DOES</div>
         <h2 class="binding-summary" aria-live="polite">${esc(selectionName())}: <span class="binding-value">${esc(labelOf(b))}</span></h2>
-        <div class="segmented" role="group" aria-label="Assignment type">${[...(control.top?['default']:[]),'key','mouse','macro','disabled'].map(t => `<button data-type="${t}" class="${b.type === t ? 'active' : ''}">${({key:'Key / modifier',mouse:'Mouse',macro:'Macro',disabled:'Disable',default:'Original'})[t]}</button>`).join('')}</div>
+        <div class="segmented" role="group" aria-label="Assignment type">${[...(control.top||draft.model!==0xf55d?['default']:[]),'key','mouse','macro','disabled'].map(t => `<button data-type="${t}" class="${b.type === t ? 'active' : ''}">${({key:'Key / modifier',mouse:'Mouse',macro:'Macro',disabled:'Disable',default:'Original'})[t]}</button>`).join('')}</div>
         ${b.type === 'key' ? `
           <button id="capture-binding" class="capture-binding ${capturingBinding ? 'listening' : ''}"><span>${capturingBinding ? 'Listening… press your key or shortcut' : 'Click here, then press a key'}</span><small>${capturingBinding ? 'Release a modifier to use it alone. Escape cancels.' : 'For example: Q, Space, or Ctrl + 1'}</small></button>
           ${capturingBinding ? '<button class="text-button" id="cancel-capture">Cancel recording</button>' : ''}
-        ` : b.type === 'default' ? '<p class="help original-help">Keep this control’s original mouse function. Choose Key / modifier, Mouse, or Macro above to change it. Returning to Original restores its backed-up setting.</p>' : b.type === 'mouse' ? `<label class="field"><span>MOUSE FUNCTION</span><select id="binding-mouse">${Object.entries(state.mouseActions).map(([value,a])=>`<option value="${value}" ${b.value===value?'selected':''}>${esc(a.name)}</option>`).join('')}</select></label>` : b.type === 'macro' ? `
+        ` : b.type === 'default' ? '<p class="help original-help">Keep this control’s original mouse function. Choose Key / modifier, Mouse, or Macro above to change it. Returning to Original restores its backed-up setting.</p>' : b.type === 'mouse' ? `<label class="field"><span>MOUSE FUNCTION</span><select id="binding-mouse">${Object.entries(state.mouseActions).filter(([id])=>draft.model!==0xf55d || ['left','right','middle','back','forward'].includes(id)).map(([value,a])=>`<option value="${value}" ${b.value===value?'selected':''}>${esc(a.name)}</option>`).join('')}</select></label>` : b.type === 'macro' ? `
           <button class="button" id="binding-macro">Choose macro…</button><p class="help">${esc(macroPlaybackLabel(draft.macros.find(m => m.id === b.value) || {}))}. Keep Neuron open or in the tray.</p>
         ` : '<p class="help">This button will send no input after you apply the profile.</p>'}
       </section>
     </div>
     ${renderKeyboard()}`;
-  $('#plate').onchange = e => { cancelBindingCapture(); draft.plate = Number(e.target.value); draft.bindings = Array.from({length:draft.plate},(_,i) => draft.bindings[i] || {type:'key',value:defaults[i]}); selected = Math.min(selected,draft.plate-1); markDirty(); render(); };
+  $('#plate').onchange = e => { cancelBindingCapture(); draft.plate = Number(e.target.value); draft.bindings = Array.from({length:draft.plate},(_,i) => draft.bindings[i] || {type:'key',value:defaults[i]}); selected = 0; markDirty(); render(); };
+  if($('#clear-unavailable-bindings'))$('#clear-unavailable-bindings').onclick=()=>{for(const id of Object.keys(draft.topBindings))if(!availableTopControls().some(c=>c.id===id))draft.topBindings[id]={type:'default',value:''};markDirty();renderButtons();};
   if ($('#capture-binding')) $('#capture-binding').onclick = () => { capturingBinding = true; capturedModifiers.clear(); renderButtons(); $('#capture-binding').focus(); };
   if ($('#cancel-capture')) $('#cancel-capture').onclick = cancelBindingCapture;
   if ($('#binding-macro')) $('#binding-macro').onclick = openMacroPicker;

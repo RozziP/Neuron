@@ -31,7 +31,7 @@ class HardwareReporter {
   observe(records) {
     this.current = new Map(collectReports(records,this.system).map(r=>[reportKey(r),r]));
     for (const d of records) {
-      const model = d.vendorId===0x1532 && catalog.find(m=>m.productId===d.productId && m.driver);
+      const model = d.vendorId===0x1532 && catalog.find(m=>m.productId===d.productId && m.driver && m.driverValidation!=='best-guess');
       if(model)this.current.set(reportKey(d),{vendorId:d.vendorId,productId:d.productId,model:model.name});
     }
     this.publish();

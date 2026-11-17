@@ -16,14 +16,22 @@ const mouseDockPro = {
 function discoverReceivers(records) {
   const devices = new Map();
   for (const d of records) {
-    const receiver = [compxReceiver, mouseDockPro].find(r => r.vendorId === d.vendorId && r.productId === d.productId);
+    const receiver = [compxReceiver, {...compxReceiver,productId:0xf55e,name:'Compx USB Mouse',connection:'wired'}, mouseDockPro].find(r => r.vendorId === d.vendorId && r.productId === d.productId);
     if (!receiver || d.interface !== (receiver.connection === 'dock' ? 0 : 2) ||
         d.usagePage !== 1 || d.usage !== 2 || !d.path) continue;
     // Anchor recognition to the mouse collection. The seven keyboard, consumer,
     // and vendor collections are not separate mice or known control endpoints.
     const id = `${d.vendorId}:${d.productId}:${d.path}`;
-    devices.set(id, { ...receiver, id, connected: true,
-      paths: [{ path: d.path, interface: d.interface, usagePage: d.usagePage, usage: d.usage }] });
+    const paths = [{ path: d.path, interface: d.interface, usagePage: d.usagePage, usage: d.usage }];
+    if (receiver.vendorId === 0x3554) {
+      // Windows collection paths on different interfaces have unrelated instance
+      // hashes. Never guess which control belongs to which mouse when ambiguous.
+      const peers=records.filter(c=>c.vendorId===d.vendorId && c.productId===d.productId && c.path);
+      const anchors=new Set(peers.filter(c=>c.interface===2 && c.usagePage===1 && c.usage===2).map(c=>c.path));
+      const controls=[...new Map(peers.filter(c=>c.interface===1 && c.usagePage===0xff02 && c.usage===2).map(c=>[c.path,c])).values()];
+      if(anchors.size===1 && controls.length===1) { const c=controls[0]; paths.push({path:c.path,interface:c.interface,usagePage:c.usagePage,usage:c.usage}); }
+    }
+    devices.set(id, { ...receiver, id, connected: true, paths });
   }
   return [...devices.values()];
 }

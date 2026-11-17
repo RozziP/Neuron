@@ -1,0 +1,97 @@
+// Renderer/preload/main/store integration. All hardware operations are simulated.
+const fs=require('node:fs');
+const path=require('node:path');
+const assert=require('node:assert/strict');
+const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+async function run(window,app,hardware) {
+  const directory=path.dirname(app.getPath('userData')), errors=[], screenshots=[], operations=[];
+  const js=code=>window.webContents.executeJavaScript(`(async()=>{${code}})()`);
+  const wait=async condition=>{for(let i=0;i<100;i++){if(await js(`return ${condition}`))return;await delay(50);}throw new Error('Timed out: '+condition);};
+  const click=selector=>js(`document.querySelector(${JSON.stringify(selector)}).click()`);
+  const snapshot=()=>js('return window.neuron.state()');
+  const rejected=async code=>assert.equal(await js(`try{${code};return false;}catch{return true;}`),true,code);
+  const screenshot=async name=>{await delay(180);const file=path.join(directory,name+'.png');fs.writeFileSync(file,(await window.webContents.capturePage()).toPNG());screenshots.push(file);};
+  window.webContents.on('console-message',event=>{if(event.level==='error')errors.push(event.message);});
+  const a={id:'workspace-a',vendorId:0x1532,productId:103,name:'Naga Trinity',mappingPlates:[2,7,12],paths:[],connected:true};
+  const b={...a,id:'workspace-b'};
+  const red={id:'workspace-red',vendorId:0x3554,productId:0xf55d,modelId:0xf55d,name:'Redragon M990-WL',mappingPlates:[16],paths:[],connected:true};
+  const unknown={id:'workspace-unknown',vendorId:0x3554,productId:0x9999,name:'Unknown mouse',connection:'receiver',mappingPlates:[],paths:[],connected:true};
+  let devices=[a,b,red,unknown], failRestore=false;
+  hardware.devices=async()=>devices;
+  hardware.inspectDpi=async id=>{operations.push(['dpi',id]);return{x:id===a.id?800:1600,y:id===a.id?800:1600};};
+  hardware.apply=async id=>{operations.push(['apply',id]);return{message:'Simulated application'};};
+  hardware.restore=async id=>{if(failRestore)throw new Error('Simulated restore failure');operations.push(['restore',id]);return{message:'Simulated restoration'};};
+  try {
+    await wait('!!document.querySelector("#profile-select option")');
+    await js('await window.neuron.scan()');
+    let s=await snapshot();
+    const keys=Object.fromEntries(s.mouseWorkspaces.filter(w=>w.deviceId).map(w=>[w.deviceId,w.key]));
+    const select=async id=>{await click(`[data-mouse-key="${keys[id]}"]`);await wait(`(await window.neuron.state()).selectedMouse.key===${JSON.stringify(keys[id])} && !document.querySelector('[data-mouse-key="${keys[id]}"]').disabled`);};
+    await select(a.id);
+    const profileA=await js('return window.neuron.create("Only mouse A",103,12)');
+    await js('await window.neuron.saveMacros([{id:"only-a",name:"A macro",repeat:1,steps:[{type:"key",value:"A"}]}])');
+    await select(b.id);s=await snapshot();
+    assert.equal(s.profiles.length,1);assert.equal(s.macros.length,0);
+    assert.ok(!s.profiles.some(p=>p.id===profileA.id));
+    await rejected(`await window.neuron.save(${JSON.stringify(profileA)})`);
+    await rejected(`await window.neuron.export(${JSON.stringify(profileA)})`);
+    await rejected(`await window.neuron.remove(${JSON.stringify(profileA.id)})`);
+    await rejected('await window.neuron.create("Wrong model",62813,16)');
+    await rejected(`await window.neuron.apply(${JSON.stringify(a.id)},(await window.neuron.state()).profiles[0])`);
+    await rejected(`await window.neuron.inspectDpi(${JSON.stringify(a.id)})`);
+    assert.deepEqual(operations,[]);
+    const profileB=await js('return window.neuron.create("Only mouse B",103,12)');
+    await js('await window.neuron.saveMacros([{id:"only-b",name:"B macro",repeat:1,steps:[{type:"key",value:"B"}]}])');
+    await select(a.id);
+    s=await snapshot();assert.ok(s.profiles.some(p=>p.id===profileA.id));assert.ok(!s.profiles.some(p=>p.id===profileB.id));assert.equal(s.macros[0].id,'only-a');
+    await click('[data-nav="profiles"]');
+    assert.equal(await js('return document.querySelector("#content").textContent.includes("Only mouse B")'),false);
+    await click('[data-nav="macros"]');
+    assert.equal(await js('return document.querySelector("#content").textContent.includes("B macro")'),false);
+    await screenshot('mouse-workspace-macros');
+    await click('#new-macro');await click(`[data-mouse-key="${keys[b.id]}"]`);await wait('document.querySelector("#confirm-dialog").open');
+    await click('#confirm-cancel');assert.equal((await snapshot()).selectedDeviceId,a.id);
+    await click(`[data-mouse-key="${keys[b.id]}"]`);await wait('document.querySelector("#confirm-dialog").open');await click('#confirm-ok');
+    await wait(`(await window.neuron.state()).selectedDeviceId===${JSON.stringify(b.id)}`);
+    assert.equal((await snapshot()).macros.length,1);await select(a.id);
+    await click('[data-nav="dpi"]');await wait('document.querySelector(".dpi-device-value strong").textContent==="800"');
+    await select(b.id);await wait('document.querySelector(".dpi-device-value strong").textContent==="1,600"');
+    assert.equal(await js('return !!document.querySelector("#dpi-device")'),false);
+    assert.deepEqual(operations.slice(-2),[['dpi',a.id],['dpi',b.id]]);
+    await select(red.id);assert.equal(await js('return document.querySelector("#apply-dpi").disabled'),true);
+    await click('[data-nav="buttons"]');
+    assert.equal(await js('return document.querySelectorAll(".side-control-key").length'),16);
+    assert.equal((await snapshot()).profiles.every(p=>p.model===0xf55d),true);
+    await select(unknown.id);s=await snapshot();assert.deepEqual(s.profiles,[]);assert.deepEqual(s.macros,[]);
+    assert.equal(await js('return document.querySelector(".head-actions").hidden'),true);
+    assert.equal(await js('return document.querySelector("#content").inert'),false);
+    await select(b.id);
+    // Discard prompts keep the old workspace until explicitly accepted.
+    await click('[data-type="disabled"]');
+    await click(`[data-mouse-key="${keys[a.id]}"]`);await wait('document.querySelector("#confirm-dialog").open');await click('#confirm-cancel');
+    assert.equal((await snapshot()).selectedDeviceId,b.id);
+    await click(`[data-mouse-key="${keys[a.id]}"]`);await wait('document.querySelector("#confirm-dialog").open');await click('#confirm-ok');
+    await wait(`(await window.neuron.state()).selectedDeviceId===${JSON.stringify(a.id)}`);
+    // Active mappings must be restored before another mouse becomes selected.
+    await js(`await window.neuron.apply(${JSON.stringify(a.id)},(await window.neuron.state()).profiles[0])`);
+    failRestore=true;await rejected(`await window.neuron.selectMouse(${JSON.stringify(keys[b.id])})`);
+    assert.equal((await snapshot()).selectedDeviceId,a.id);
+    failRestore=false;await select(b.id);assert.equal((await snapshot()).active,null);
+    assert.deepEqual(operations.slice(-2),[['apply',a.id],['restore',a.id]]);
+    // An identical connected mouse must never inherit the disconnected mouse's workspace.
+    devices=[a,red,unknown];await js('await window.neuron.scan()');s=await snapshot();
+    assert.equal(s.selectedDeviceId,null);assert.ok(s.profiles.some(p=>p.id===profileB.id));
+    assert.equal(await js('return document.querySelector("#apply").disabled'),true);
+    devices=[a,b,red,unknown];await js('await window.neuron.scan()');assert.equal((await snapshot()).selectedDeviceId,b.id);
+    window.webContents.reload();await delay(200);await wait('!!document.querySelector(".mouse-key")');
+    s=await snapshot();assert.equal(s.selectedMouse.key,keys[b.id]);assert.equal(s.macros[0].id,'only-b');
+    await screenshot('mouse-workspace-buttons');window.setSize(1080,730);await delay(200);
+    assert.equal(await js('return document.querySelector("main").scrollWidth<=document.querySelector("main").clientWidth'),true);
+    assert.equal(await js('return document.querySelector("#check-updates").getBoundingClientRect().bottom<=innerHeight'),true);
+    await screenshot('mouse-workspace-compact');
+    assert.deepEqual(errors,[]);
+    fs.writeFileSync(path.join(directory,'workspace-smoke-result.json'),JSON.stringify({ok:true,hardwareWrites:false,screenshots,operations},null,2));
+    console.log('Mouse workspace desktop smoke passed.');app.quit();
+  } catch(error) {fs.writeFileSync(path.join(directory,'workspace-smoke-result.json'),JSON.stringify({ok:false,error:error.stack,errors},null,2));console.error(error);app.exit(1);}
+}
+module.exports={run};

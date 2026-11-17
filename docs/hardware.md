@@ -1,19 +1,22 @@
 # Naga hardware implementation notes
 
+The broader Razer catalog, best-guess family drivers and model-specific control
+layouts are documented in [Razer driver coverage](razer-drivers.md).
+
 ## Remapping adapters and Mouse Dock Pro
 
 The adapter registry in `app/drivers.cjs` separates physical USB IDs from selected mouse models. These are independently implemented protocol adapters, not bundled copies of other applications. All are experimental in Neuron; only Trinity has local physical verification.
 
 | Mouse / connection | IDs | Side plates | Write storage |
 | --- | --- | --- | --- |
-| Trinity | `0067` | 7, 12 | Pending 2, then active 1 (existing behavior) |
+| Trinity | `0067` | 2, 7, 12 | Pending 2, then active 1 (existing behavior) |
 | Naga Pro wired / receiver | `008F`, `0090` | 2, 6, 12 | Live 0 |
 | Naga V2 Pro wired / receiver | `00A7`, `00A8` | 2, 6, 12 | Live 0 |
 | Naga V3 Pro wired / receiver | `00E7`, `00E8` | 2, 6, 12 | Live 0 |
 | Naga V2 HyperSpeed receiver | `00B4` | 12 | Stored 1, then live 0 |
 | V2/V3 Pro via Mouse Dock Pro | `00A4` transport | 2, 6, 12 | Live 0, transaction `1F` to the paired mouse |
 
-Modern remapping uses class `02`, GET `8C` / SET `0C`, size `0A`, transaction `1F`. Twelve-button plates use sources `40..4B`, six-button plates use `50..55`, and the two-button plate uses front `05` / rear `04`. Body controls use the published model-specific source table. V2 Pro's front/rear wheel-stage buttons are `6D` / `60`, not Trinity's `0B` / `0C`. Extra V3 controls, the underside profile button, Hypershift, Bluetooth configuration, onboard macro storage, and non-Trinity DPI controls are not exposed in this change.
+Modern Naga remapping uses class `02`, GET `8C` / SET `0C`, size `0A`, transaction `1F`. Twelve-button plates use sources `40..4B`, six-button plates use `50..55`, and the two-button plate uses front `05` / rear `04`. Body controls use the published model-specific source table. V2 Pro's front/rear wheel-stage buttons are `6D` / `60`, not Trinity's `0B` / `0C`; these are now displayed as fixed because upstream marks them read-only. V3's extra index, pinky, scroll and profile controls are exposed. Hypershift, Bluetooth configuration, onboard macro storage and non-Trinity DPI controls remain unavailable.
 
 Every affected assignment is read before writing; originals are durably saved, each change is read back, and failures trigger rollback. Modern backups preserve the full seven-byte function block: factory keyboard blocks can advertise length 1 while carrying the key usage in the second data byte. The returned layer flag is not a reliable request echo; normal-layer writes and restoration explicitly address layer 0. Pro-family changes use only the live layer; they do not promise persistence after power loss or a hardware profile change. HyperSpeed's stored layer is backed up and restored along with its live view.
 
@@ -31,7 +34,7 @@ Protocol evidence:
 - [OpenMouse's V2 Pro dock passthrough report](https://github.com/OpenMouse-Project/mouse-protocol/blob/main/docs/razer-testing.md), which establishes settings transport, not button-remapping verification by itself.
 - Secretarybird's [dock identification and separate transaction IDs](https://github.com/infinityInfinite/secbird/blob/main/crates/secbird-core/src/device.rs), [button implementation](https://github.com/infinityInfinite/secbird/blob/main/crates/secbird-core/src/buttons.rs), and [command definitions](https://github.com/infinityInfinite/secbird/blob/main/crates/secbird-core/src/commands.rs).
 
-Neuron's new adapters have simulated transport tests for exact restoration, wrong model/plate rejection, lost acknowledgements, rollback, and automatic profile selection. They still need Windows hardware acceptance testing on each model/transport. An upstream hardware capture establishes protocol evidence; it does not mean Neuron has been physically tested on that device. Older Naga models remain discovery-only where a sufficiently supported remapping protocol has not been established.
+Neuron's new adapters have simulated transport tests for exact restoration, wrong model/plate rejection, lost acknowledgements, rollback, and automatic profile selection. They still need Windows hardware acceptance testing on each model/transport. An upstream hardware capture establishes protocol evidence; it does not mean Neuron has been physically tested on that device. Older Naga models now have explicitly best-guess adapters; their physical input behavior remains unverified.
 
 ## Compx receiver recognition
 
@@ -76,7 +79,55 @@ The follow-up modifier check (`scripts/modifier-roundtrip.cjs`) wrote and read b
 - Verify profile switching latency and wear characteristics before treating frequent onboard writes as a final architecture. Host-side binding execution could avoid repeated stored-profile writes but must preserve key-up and device isolation.
 - Verify recovery after real disconnection during a write. Unit tests cover partial writes and rollback, but cannot establish every firmware's behavior under power loss.
 
-## Primary references
+## Redragon M990-WL
+
+The M990-WL has a separate experimental Compx driver. Its wireless receiver is
+`3554:F55D`; the installed vendor configuration also lists wired `3554:F55E`.
+These IDs are shared with other products. Neuron requires a successful live
+`ReadCIDMID` response of CID 23 / MID 48, even after manual model selection and
+again before each settings operation. An unresponsive or differently paired
+receiver cannot enter the write path. Ambiguous multiple receivers with the same
+USB identity remain read-only until their Windows interfaces can be associated.
+
+The transport uses interface 1, usage page `FF02`, usage 2, output/input report
+8 (17 bytes including the report ID). All frames sum to `55` modulo 256; replies
+must match the command, address, status, and requested read length. The identity
+query has no payload. A payload of `[1]`, used by some community implementations,
+was rejected by this firmware and must not be treated as successful identification.
+
+The 16 side buttons use four-byte assignments at `0060..009F` and corresponding
+32-byte shortcut slots at `0100..02FF`. Keyboard combinations use class 5 and the
+same-index shortcut slot. Neuron supports keyboard keys, modifier masks, its
+F13–F24 macro triggers, disabled buttons, and the five standard mouse buttons.
+Top buttons, DPI, lighting, firmware, and onboard macro storage are not written.
+Battery command 4 returns percentage and charging status. Configuration writes
+are persistent; automatic profile switching only writes changed records.
+
+Before any write, Neuron saves the complete original assignment and shortcut
+areas. Each write is read back, then the existing onboard configuration is
+reloaded and the complete mapping snapshot is checked again. Failed operations
+attempt restoration, including partially written shortcuts. Backups are retained
+for Restore original. Switching the physical onboard profile requires returning
+to the backed-up profile before applying or restoring.
+
+Local hardware validation on 2026-11-17 confirmed CID 23 / MID 48, battery 100%,
+the settings layout, and a temporary side-button-1 F24 mapping. The user pressed
+and released that button; Windows observed both events. The test restored all
+original bytes and verified the full snapshot. The remaining positions, mouse
+actions, and modifier combinations still need individual physical acceptance
+tests. Wired USB is based on the vendor configuration and remains untested.
+`node scripts/redragon-roundtrip.cjs --listen` repeats the temporary one-button
+test with automatic restoration; its recovery snapshot stays in `artifacts`.
+`electron . --redragon-smoke-test` exercises selection, the 16-button editor,
+saved profiles, and unsupported-device gating without hardware writes.
+
+Protocol references: [Compx framing and identity](https://github.com/E1yWrites/udb/blob/1afdd4581d603a3afaba2a3df4c0e92a3003fab0/src/adapters/compx.ts),
+[flash assignment records](https://github.com/dongkid/g49-web-control/blob/da76cef7822741421a7612f1db4bbdb18d199dfd/js/protocol.js),
+and [shortcut context format](https://github.com/dongkid/g49-web-control/blob/da76cef7822741421a7612f1db4bbdb18d199dfd/js/mouse-api.js).
+The installed M990-WL 1.0.2.0 `Config.ini` supplies CID 23, MID 48, `KeyNumber=16`,
+PAW3395, and the transport IDs. No vendor binaries or configuration files are bundled.
+
+## Razer references
 
 - [OpenRazer device IDs](https://github.com/openrazer/openrazer/blob/master/driver/razermouse_driver.h).
 - [Trinity capture notes](https://github.com/cepheiden/Razer-Naga-Trinity-MACOS/blob/main/CLAUDE.md), especially the Wireshark-decoded side-button section. Earlier statements in that file about unimplemented writes are superseded by its later capture notes.

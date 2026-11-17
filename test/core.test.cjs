@@ -37,7 +37,7 @@ test('profile validation rejects invalid macros and unresolved references', () =
   const badRef = structuredClone(p); badRef.bindings[0].value = 'missing'; assert.throws(() => validateProfile(badRef));
   p.macros[0].steps[0].value = 'F13'; assert.throws(() => validateProfile(p),/reserved/);
   p.macros[0].steps = [{type:'delay',ms:10000}]; p.macros[0].repeat = 50; assert.equal(validateProfile(p).macros[0].repeat,50);
-  p.model = 0x0096; assert.throws(() => actionsFor(p));
+  p.model = 0xffff; assert.throws(() => actionsFor(p));
 });
 test('standalone modifiers and modifier-only chords compile to held HID modifiers', () => {
   assert.deepEqual(parseChord('Shift'),{hid:0,modifiers:2,virtualKeys:[16]});

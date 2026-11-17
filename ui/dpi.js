@@ -1,7 +1,5 @@
-let dpiDeviceId = '', dpiValues = new Map(), dpiReadback = new Map(), dpiReading = false;
-function dpiDevice() {
-  return state.devices.find(d => d.id === dpiDeviceId) || state.devices.find(d => d.productId === 0x0067) || state.devices[0];
-}
+let dpiValues = new Map(), dpiReadback = new Map(), dpiReading = false;
+function dpiDevice() { return currentDevice(); }
 function updateDpiControls() {
   const device = dpiDevice(), unavailable = !device || device.productId !== 0x0067 || busy || state.applying || dpiReading;
   if ($('#read-dpi')) $('#read-dpi').disabled = unavailable;
@@ -12,15 +10,14 @@ function updateDpiControls() {
 async function readMouseDpi() {
   const device = dpiDevice();
   if (!device || device.productId !== 0x0067 || dpiReading) return;
-  dpiReading = true; updateDpiControls();
+  dpiReading = true; updateDpiControls();renderMouseSidebar();
   try {
     const value = await api.inspectDpi(device.id);
     dpiReadback.set(device.id, value); dpiValues.set(device.id, { ...value });
-  } finally { dpiReading = false; if (page === 'dpi') renderDpi(); }
+  } finally { dpiReading = false;renderMouseSidebar(); if (page === 'dpi') renderDpi(); }
 }
 function renderDpi() {
   const device = dpiDevice();
-  if (device) dpiDeviceId = device.id;
   const value = dpiValues.get(device?.id) || { x: 1800, y: 1800 };
   if (device && !dpiValues.has(device.id)) dpiValues.set(device.id, value);
   const reading = dpiReadback.get(device?.id);
@@ -29,7 +26,7 @@ function renderDpi() {
     <section class="card">
       <div class="card-head"><h2>Mouse sensitivity</h2><button class="button primary" id="apply-dpi">Apply DPI</button></div>
       <div class="dpi-editor">
-        ${state.devices.length > 1 ? `<label class="field"><span>MOUSE</span><select id="dpi-device">${state.devices.map(d => `<option value="${esc(d.id)}" ${d.id === device.id ? 'selected' : ''}>${esc(d.name)}${d.serial ? ' · ' + esc(d.serial) : ''}</option>`).join('')}</select></label>` : ''}
+        <p class="help">${esc(state.selectedMouse?.name || 'Selected mouse')}</p>
         ${!device ? '<p class="help">Connect a Naga Trinity to adjust DPI.</p>' : device.productId !== 0x0067 ? '<p class="help">DPI control is available for Naga Trinity.</p>' : ''}
         <fieldset class="dpi-controls">
           <legend class="dpi-sr-only">Mouse sensitivity</legend>
@@ -69,6 +66,5 @@ function renderDpi() {
       toast('DPI applied to your mouse.');
     } finally { busy = false; render(); }
   });
-  if ($('#dpi-device')) $('#dpi-device').onchange = e => { dpiDeviceId = e.target.value; renderDpi(); void act(readMouseDpi); };
   updateDpiControls();
 }

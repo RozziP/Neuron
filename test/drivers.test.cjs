@@ -123,9 +123,11 @@ test('model, plate and short-reply mismatches fail before writes',async t=>{
   assert.equal(driverFor({vendorId:0x3554,productId:0xf55d,modelId:0x00a8}),null);
 });
 
-test('Pro plates and V2 top buttons use their published source IDs',()=>{
+test('Pro plates use published IDs and V2 fixed stage buttons cannot be written',()=>{
   const two=newProfile('Two',0x0090,2);
   assert.deepEqual(actionsFor(two).map(a=>a.source),[5,4]);
   const six=newProfile('Six',0x00a8,6);six.topBindings['dpi-up']={type:'key',value:'Q'};six.topBindings['dpi-down']={type:'key',value:'E'};
-  assert.deepEqual(actionsFor(six).map(a=>a.source),[80,81,82,83,84,85,109,96]);
+  assert.throws(()=>actionsFor(six),/absent or fixed/);
+  six.topBindings['dpi-up']={type:'default',value:''};six.topBindings['dpi-down']={type:'default',value:''};
+  assert.deepEqual(actionsFor(six).map(a=>a.source),[80,81,82,83,84,85]);
 });

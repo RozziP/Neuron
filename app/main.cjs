@@ -4,7 +4,8 @@ const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { randomUUID } = require('node:crypto');
 const { Bridge } = require('./bridge.cjs');
-const { Store, newProfile, validateProfile } = require('./store.cjs');
+const { newProfile, validateProfile } = require('./store.cjs');
+const { MouseWorkspaces } = require('./mouse-workspaces.cjs');
 const { Hardware } = require('./hardware.cjs');
 const { BatteryMonitor } = require('./battery.cjs');
 const { trayState, trayPixels } = require('./tray.cjs');
@@ -19,7 +20,9 @@ const { UpdateChecker } = require('./updates.cjs');
 const reportingConfig = require('./reporting-config.json');
 const os = require('node:os');
 const dpiSmoke = process.argv.includes('--dpi-smoke-test');
-const smoke = dpiSmoke || process.argv.includes('--smoke-test');
+const redragonSmoke = process.argv.includes('--redragon-smoke-test');
+const workspaceSmoke = process.argv.includes('--workspace-smoke-test');
+const smoke = workspaceSmoke || dpiSmoke || redragonSmoke || process.argv.includes('--smoke-test');
 if (smoke) {
   const root = process.env.NEURON_SMOKE_DIR || (app.isPackaged ? path.join(app.getPath('temp'), 'neuron-smoke') : path.join(__dirname, '../artifacts'));
   app.setPath('userData', path.join(root, `smoke-data-${Date.now()}`));
@@ -27,6 +30,7 @@ if (smoke) {
 app.setName('Neuron');
 const ownsInstance = app.requestSingleInstanceLock();
 if (!ownsInstance) app.exit(0);
+let workspaces, selectingMouse=false;
 let window, tray, bridge, store, hardware, player, timer, library, reporter, updates;
 let batteries, lastTrayState = '';
 let readyToOpen = false;
@@ -52,7 +56,7 @@ async function createMainWindow() {
   return created;
 }
 function notify(message) { if (window && !window.isDestroyed()) window.webContents.send('notice', message); }
-function state() { return { preferredMouseModel: hardware.models.preferredModel, profiles: store.profiles, macros: store.macros, devices: devices.map(({ paths, ...d }) => d), hardwareReports: reporter?.summaries() || [], catalog, topControls, mouseActions, active: active && { profileId: active.profile.id, deviceId: active.deviceId, profile: active.profile }, applying, auto, error: lastError || store.warning }; }
+function state() { return { preferredMouseModel: workspaces.selected?.model, selectedMouse: workspaces.selected, mouseWorkspaces: workspaces.summaries(devices), selectedDeviceId: workspaces.device(devices)?.id || null, profiles: store?.profiles || [], macros: store?.macros || [], devices: devices.map(({ paths, ...d }) => d), hardwareReports: reporter?.summaries() || [], catalog, topControls, mouseActions, active: active && { profileId: active.profile.id, deviceId: active.deviceId, profile: active.profile }, applying:applying || selectingMouse, auto, error: lastError || store?.warning || '' }; }
 function changed() { updateTray(); if (window && !window.isDestroyed()) window.webContents.send('state', state()); }
 function updateTray() {
   if (!tray || tray.isDestroyed()) return;
@@ -101,8 +105,28 @@ function reserveShortcuts(profile) {
   } catch(error) { for (const key of added) { globalShortcut.unregister(key); registered.delete(key); } throw error; }
   return { added, needed: new Set(needed) };
 }
+function requireStore() { if(!store)throw new Error('Identify the selected mouse before creating profiles.');return store; }
+function requireScope(key) {if(workspaces.selectedKey!==key)throw new Error('The selected mouse changed. Try again in its workspace.');}
+function reconcileWorkspaces() {
+  workspaces.reconcile(devices);store=workspaces.storeFor();
+  if(active && !store?.profiles.some(p=>p.id===active.profile.id)){player.stop();clearShortcuts();active=null;}
+}
+async function selectWorkspace(key) {
+  if(applying || selectingMouse)throw new Error('Wait for the current device operation to finish.');
+  if(key===workspaces.selectedKey)return state();
+  if(!workspaces.entries.some(e=>e.key===key))throw new Error('Choose a mouse from the sidebar.');
+  selectingMouse=true;changed();
+  try {
+    if(active)await restoreDevice(active.deviceId);
+    player.stop();clearShortcuts();store=workspaces.select(key);
+    fallbackId=store?.profiles.find(p=>!p.executable)?.id || null;
+    autoCandidate='';retryAfter=0;lastError='';
+  } finally {selectingMouse=false;changed();}
+  return state();
+}
 async function applyProfile(deviceId, input) {
   if (applying) throw new Error('Wait for the current device operation to finish.');
+  workspaces.assertDevice(deviceId,devices); workspaces.assertProfile(input);
   const profile = validateProfile(input);
   if (active && active.deviceId !== deviceId) throw new Error('Restore the active mouse before switching to another device.');
   applying = true; changed(); player.stop();
@@ -129,26 +153,33 @@ async function restoreDevice(id, options) {
   } finally { applying = false; changed(); }
 }
 function handle(channel, fn) {
-  ipcMain.handle(channel, async (event, ...args) => {
+  ipcMain.handle(channel, async (event, message) => {
     if (!window || window.isDestroyed() || event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame || event.senderFrame.url !== rendererURL) throw new Error('Untrusted IPC sender.');
-    try { return { ok: true, result: await fn(...args) }; }
+    try {
+      if(!message || !Array.isArray(message.args))throw new Error('Invalid request.');
+      if(/^(profile:|macros:|games:create$|devices:dpi|devices:inspect$|device:restore$)/.test(channel))requireScope(message.workspaceKey);
+      return { ok: true, result: await fn(...message.args) };
+    }
     catch (error) { return { ok: false, error: error.message }; }
   });
 }
 async function poll() {
-  if (applying || quitting) return;
+  if (applying || selectingMouse || quitting) return;
   try {
     const next = await hardware.devices();
     if (reporter) void reporter.tick(hardware.enumerated).catch(() => {});
     if (JSON.stringify(next) !== JSON.stringify(devices)) {
-      devices = next;
-      if (active && !devices.some(d => d.id === active.deviceId)) { player.stop(); notify('Naga disconnected. Game profiles resume automatically after reconnecting.'); clearShortcuts(); active = null; }
+      devices = next; reconcileWorkspaces();
+      if (active && !devices.some(d => d.id === active.deviceId)) { player.stop(); notify('Mouse disconnected. Game profiles resume automatically after reconnecting.'); clearShortcuts(); active = null; }
       changed();
     }
     await batteries.refresh(devices); updateTray();
     if (Date.now()<retryAfter) return;
+    const scope=workspaces.selectedKey, selectedDevice=workspaces.device(devices);
+    if(!store || !selectedDevice)return;
     const foreground = await bridge.call('foreground');
-    const target=automaticTarget(store.profiles,devices,active,foreground,fallbackId);
+    if(selectingMouse || scope!==workspaces.selectedKey)return;
+    const target=automaticTarget(store.profiles,[selectedDevice],active,foreground,fallbackId);
     if(!target){autoCandidate='';return;}
     const identity=target.deviceId+':'+(target.restore?'restore':target.profile.id);
     if(autoCandidate!==identity){autoCandidate=identity;autoSince=Date.now();return;}
@@ -160,17 +191,18 @@ async function poll() {
   } catch(error) { retryAfter=Date.now()+5000; lastError=error.message; changed(); }
 }
 app.whenReady().then(async () => {
-  bridge = new Bridge(); store = new Store(app.getPath('userData'));
+  bridge = new Bridge(); workspaces = new MouseWorkspaces(app.getPath('userData'));
   library = new GameLibrary(app.getPath('userData'));
   hardware = new Hardware(bridge, app.getPath('userData')); player = new MacroPlayer(bridge, notify);
   batteries = new BatteryMonitor(hardware);
-  devices = await hardware.devices(); fallbackId = store.profiles.find(p => !p.executable)?.id;
+  devices = await hardware.devices(); reconcileWorkspaces(); fallbackId = store?.profiles.find(p => !p.executable)?.id;
   updates = new UpdateChecker({ currentVersion: app.getVersion(), openExternal: url => shell.openExternal(url),
     onChange: status => { if (window && !window.isDestroyed()) window.webContents.send('updates', status); } });
   handle('updates:get', () => updates.snapshot());
   handle('updates:check', () => updates.check());
   handle('updates:open', () => updates.openRelease());
   handle('state:get', () => state());
+  handle('workspace:select', key => selectWorkspace(key));
   handle('games:get', () => library.data);
   handle('games:scan', () => library.scan());
   handle('games:add', async id => {
@@ -180,6 +212,7 @@ app.whenReady().then(async () => {
     return library.add(result.filePaths[0],null,id);
   });
   handle('games:create', async (id, baseId, model, plate, executablePath, importFile) => {
+    requireStore();workspaces.assertModel(model);const scope=workspaces.selectedKey;
     const game=library.data.games.find(g=>g.id===id);
     if (!game) throw new Error('Game not found. Scan your library again.');
     let base=baseId ? store.profiles.find(p=>p.id===baseId && !p.gameId) : null;
@@ -192,18 +225,19 @@ app.whenReady().then(async () => {
       if(data.version!==1)throw new Error('Unsupported profile format.');
       base=validateProfile(data.profile);
     }
+    requireScope(scope);
     const profile=store.save(createGameProfile(game,base,model,plate,executablePath)); changed(); return profile;
   });
-  handle('devices:scan', async () => { devices = await hardware.devices(); changed(); return state(); });
+  handle('devices:scan', async () => { devices = await hardware.devices(); reconcileWorkspaces(); changed(); return state(); });
   handle('devices:model', async (id, model) => {
     if (applying) throw new Error('Wait for the current device operation to finish.');
     if (active?.deviceId === id) throw new Error('Restore the active mouse before changing its model.');
     applying = true; changed();
-    try { await hardware.selectModel(id, model); devices = await hardware.devices(); }
+    try { await hardware.selectModel(id, model); devices = await hardware.devices(); reconcileWorkspaces(); }
     finally { applying = false; changed(); }
     return state();
   });
-  handle('devices:prefer-model', model => { hardware.models.prefer(model); changed(); return state(); });
+  handle('devices:prefer-model', model => selectWorkspace(workspaces.offline(model).key));
   handle('hardware:confirm', (key,modelName) => {
     if(!reporter)throw new Error('Hardware identification is not ready. Try again shortly.');
     reporter.confirm(key,modelName);
@@ -216,39 +250,46 @@ app.whenReady().then(async () => {
     return shell.openExternal(report.issueUrl);
   });
   handle('devices:dpi:apply', async (id, value) => {
+    workspaces.assertDevice(id,devices);
     if (applying) throw new Error('A device operation is already running.');
     applying = true; changed();
     try { return await hardware.applyDpi(id, value); }
     finally { applying = false; changed(); }
   });
-  handle('devices:dpi', id => { if (applying) throw new Error('A device operation is already running.'); return hardware.inspectDpi(id); });
-  handle('devices:inspect', (id, plate) => { if (applying) throw new Error('A device operation is already running.'); return hardware.inspect(id, plate); });
-  handle('macros:save', input => { const macros=store.saveMacros(input); player.stop(); if(active)active.profile.macros=structuredClone(macros); changed(); return macros; });
-  handle('profile:save', input => { const p = store.save(input); changed(); return p; });
-  handle('profile:new', (name, model, plate) => { const p = store.save(newProfile(name, model, plate)); changed(); return p; });
+  handle('devices:dpi', id => { workspaces.assertDevice(id,devices); if (applying) throw new Error('A device operation is already running.'); return hardware.inspectDpi(id); });
+  handle('devices:inspect', (id, plate) => { workspaces.assertDevice(id,devices); if (applying) throw new Error('A device operation is already running.'); return hardware.inspect(id, plate); });
+  handle('macros:save', input => { const macros=requireStore().saveMacros(input); player.stop(); if(active)active.profile.macros=structuredClone(macros); changed(); return macros; });
+  handle('profile:save', input => { workspaces.assertProfile(input);const p = requireStore().save(input); changed(); return p; });
+  handle('profile:new', (name, model, plate) => { workspaces.assertModel(model);const p = requireStore().save(newProfile(name, model, plate)); changed(); return p; });
   handle('profile:delete', id => {
+    if(!requireStore().profiles.some(p=>p.id===id))throw new Error('Profile not found for this mouse.');
     if (active?.profile.id === id) throw new Error('Restore the mouse or apply another profile before deleting this one.');
     store.remove(id); changed();
   });
   handle('profile:export', async input => {
+    workspaces.assertProfile(input,{existing:true});const scope=workspaces.selectedKey;
     const profile = validateProfile(input);
     const result = await dialog.showSaveDialog(window, { defaultPath: `${profile.name.replace(/[^\w-]/g, '_')}.neuron.json`, filters: [{ name: 'Neuron profile', extensions: ['json'] }] });
+    requireScope(scope);
     if (!result.canceled) fs.writeFileSync(result.filePath, JSON.stringify({ version: 1, profile }, null, 2));
     return !result.canceled;
   });
   handle('profile:import', async () => {
+    requireStore();const scope=workspaces.selectedKey;
     const result = await dialog.showOpenDialog(window, { filters: [{ name: 'Neuron profile', extensions: ['json'] }], properties: ['openFile'] });
     if (result.canceled) return null;
     if (fs.statSync(result.filePaths[0]).size > 256000) throw new Error('Profile file exceeds 256 KB.');
     const data = JSON.parse(fs.readFileSync(result.filePaths[0], 'utf8'));
     if (data.version !== 1) throw new Error('Unsupported profile format.');
+    requireScope(scope);workspaces.assertModel(data.profile?.model);
     const profile = store.save({ ...data.profile, id: randomUUID(), gameId:'', gameName:'', executable:'', executablePath:'' }); changed(); return profile;
   });
   handle('profile:apply', (id, input) => {
     if (applying) throw new Error('Wait for the current device operation to finish.');
+    workspaces.assertDevice(id,devices);workspaces.assertProfile(input);
     const profile = store.save(input); changed(); return applyProfile(id, profile);
   });
-  handle('device:restore', id => restoreDevice(id, { restoreDpi: true }));
+  handle('device:restore', id => {workspaces.assertDevice(id,devices);return restoreDevice(id, { restoreDpi: true });});
   handle('macro:stop', () => player.stop());
   handle('window:minimize', () => window.minimize());
   tray = new Tray(nativeImage.createFromBitmap(trayPixels(null), { width: 32, height: 32 }));
@@ -265,7 +306,7 @@ app.whenReady().then(async () => {
     if(smoke)reporter.observe(hardware.enumerated||[]);
     else void reporter.tick(hardware.enumerated).catch(() => {});
   } catch { /* Reporting configuration must never prevent using the app. */ }
-  if (smoke) { await require(dpiSmoke ? '../scripts/dpi-smoke.cjs' : '../scripts/smoke.cjs').run(window, app, hardware, reporter, updates); return; }
+  if (smoke) { await require(workspaceSmoke ? '../scripts/workspace-smoke.cjs' : redragonSmoke ? '../scripts/redragon-smoke.cjs' : dpiSmoke ? '../scripts/dpi-smoke.cjs' : '../scripts/smoke.cjs').run(window, app, hardware, reporter, updates); return; }
   updates.start();
   await batteries.refresh(devices); updateTray();
   void library.scan().catch(error=>notify('Game scan: '+error.message));
