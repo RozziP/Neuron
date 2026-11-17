@@ -3,10 +3,8 @@ const fs = require('node:fs/promises');
 const syncFs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
-const {execFile} = require('node:child_process');
-const {promisify} = require('node:util');
+const {exec} = require('./processes.cjs');
 const {atomicWrite,newProfile,validateProfile} = require('./store.cjs');
-const exec = promisify(execFile);
 const normalize = p=>path.win32.normalize(p || '').toLowerCase();
 const gameId = p=>'game-'+crypto.createHash('sha256').update(normalize(p)).digest('hex').slice(0,20);
 async function exists(file) { try { await fs.access(file); return true; } catch { return false; } }

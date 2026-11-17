@@ -17,12 +17,15 @@ const { GameLibrary, createGameProfile, automaticTarget } = require('./games.cjs
 const { HardwareReporter } = require('./hardware-reporting.cjs');
 const { HardwareEvidence } = require('./hardware-evidence.cjs');
 const { UpdateChecker } = require('./updates.cjs');
+const { launchUpdateHelper, performUpdateInstall } = require('./update-install.cjs');
+const { stopBackgroundProcesses } = require('./processes.cjs');
 const reportingConfig = require('./reporting-config.json');
 const os = require('node:os');
 const dpiSmoke = process.argv.includes('--dpi-smoke-test');
 const redragonSmoke = process.argv.includes('--redragon-smoke-test');
 const workspaceSmoke = process.argv.includes('--workspace-smoke-test');
-const smoke = workspaceSmoke || dpiSmoke || redragonSmoke || process.argv.includes('--smoke-test');
+const shutdownSmoke = process.argv.includes('--shutdown-smoke-test');
+const smoke = shutdownSmoke || workspaceSmoke || dpiSmoke || redragonSmoke || process.argv.includes('--smoke-test');
 if (smoke) {
   const root = process.env.NEURON_SMOKE_DIR || (app.isPackaged ? path.join(app.getPath('temp'), 'neuron-smoke') : path.join(__dirname, '../artifacts'));
   app.setPath('userData', path.join(root, `smoke-data-${Date.now()}`));
@@ -34,6 +37,7 @@ let workspaces, selectingMouse=false;
 let window, tray, bridge, store, hardware, player, timer, library, reporter, updates;
 let batteries, lastTrayState = '';
 let readyToOpen = false;
+let installingUpdate = false, closing = false;
 let devices = [], active = null, applying = false, auto = true, quitting = false, fallbackId = null, lastError = '', autoCandidate = '', autoSince = 0, retryAfter = 0;
 const registered = new Set();
 const heldTriggers = new Map();
@@ -157,6 +161,7 @@ function handle(channel, fn) {
     if (!window || window.isDestroyed() || event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame || event.senderFrame.url !== rendererURL) throw new Error('Untrusted IPC sender.');
     try {
       if(!message || !Array.isArray(message.args))throw new Error('Invalid request.');
+      if ((installingUpdate || closing) && !['state:get','updates:get','macro:stop'].includes(channel)) throw new Error('Neuron is restarting. Please wait.');
       if(/^(profile:|macros:|games:create$|devices:dpi|devices:inspect$|device:restore$)/.test(channel))requireScope(message.workspaceKey);
       return { ok: true, result: await fn(...message.args) };
     }
@@ -164,9 +169,10 @@ function handle(channel, fn) {
   });
 }
 async function poll() {
-  if (applying || selectingMouse || quitting) return;
+  if (applying || selectingMouse || quitting || installingUpdate || closing) return;
   try {
     const next = await hardware.devices();
+    if (installingUpdate || closing || quitting) return;
     if (reporter) void reporter.tick(hardware.enumerated).catch(() => {});
     if (JSON.stringify(next) !== JSON.stringify(devices)) {
       devices = next; reconcileWorkspaces();
@@ -178,7 +184,7 @@ async function poll() {
     const scope=workspaces.selectedKey, selectedDevice=workspaces.device(devices);
     if(!store || !selectedDevice)return;
     const foreground = await bridge.call('foreground');
-    if(selectingMouse || scope!==workspaces.selectedKey)return;
+    if(selectingMouse || scope!==workspaces.selectedKey || installingUpdate || closing || quitting)return;
     const target=automaticTarget(store.profiles,[selectedDevice],active,foreground,fallbackId);
     if(!target){autoCandidate='';return;}
     const identity=target.deviceId+':'+(target.restore?'restore':target.profile.id);
@@ -196,11 +202,35 @@ app.whenReady().then(async () => {
   hardware = new Hardware(bridge, app.getPath('userData')); player = new MacroPlayer(bridge, notify);
   batteries = new BatteryMonitor(hardware);
   devices = await hardware.devices(); reconcileWorkspaces(); fallbackId = store?.profiles.find(p => !p.executable)?.id;
-  updates = new UpdateChecker({ currentVersion: app.getVersion(), openExternal: url => shell.openExternal(url),
+  const updateResultPath = path.join(app.getPath('userData'), 'update-result.json');
+  let updateError = '';
+  try {
+    const result = JSON.parse(fs.readFileSync(updateResultPath, 'utf8').replace(/^\uFEFF/, ''));
+    if (!result.ok) updateError = `The update could not finish: ${result.error}`;
+    fs.unlinkSync(updateResultPath);
+  } catch { /* No previous installer result. */ }
+  updates = new UpdateChecker({ currentVersion: app.getVersion(), startupError: updateError,
+    directory: path.join(app.getPath('userData'), 'updates'),
+    canInstall: process.platform === 'win32' && app.isPackaged && fs.existsSync(path.join(path.dirname(process.execPath), 'Uninstall Neuron.exe')),
+    install: downloaded => {
+      const previousAuto = auto;
+      return performUpdateInstall({
+        prepare: async () => {
+          if (applying || selectingMouse || quitting || closing || installingUpdate) throw new Error('Wait for the current mouse operation to finish, then try updating again.');
+          installingUpdate = true; auto = false; player.stop();
+        },
+        restore: async () => { if (active) await restoreDevice(active.deviceId); },
+        launch: () => launchUpdateHelper({ ...downloaded, appPath: process.execPath, parentId: process.pid,
+          bridgeId: bridge.process.pid, resultPath: updateResultPath },
+          { helperPath: path.join(__dirname, '../native/NeuronUpdater.exe').replace(/app\.asar([\\/])/, 'app.asar.unpacked$1') }),
+        quit: finishShutdown,
+        recover: async () => { installingUpdate = false; auto = previousAuto; changed(); }
+      });
+    },
     onChange: status => { if (window && !window.isDestroyed()) window.webContents.send('updates', status); } });
   handle('updates:get', () => updates.snapshot());
   handle('updates:check', () => updates.check());
-  handle('updates:open', () => updates.openRelease());
+  handle('updates:install', () => updates.installUpdate());
   handle('state:get', () => state());
   handle('workspace:select', key => selectWorkspace(key));
   handle('games:get', () => library.data);
@@ -306,6 +336,10 @@ app.whenReady().then(async () => {
     if(smoke)reporter.observe(hardware.enumerated||[]);
     else void reporter.tick(hardware.enumerated).catch(() => {});
   } catch { /* Reporting configuration must never prevent using the app. */ }
+  if (shutdownSmoke) {
+    await require('../scripts/shutdown-smoke.cjs').run(app, hardware, bridge, () => { active = {deviceId:'shutdown-fixture', profile:store.profiles[0]}; });
+    return;
+  }
   if (smoke) { await require(workspaceSmoke ? '../scripts/workspace-smoke.cjs' : redragonSmoke ? '../scripts/redragon-smoke.cjs' : dpiSmoke ? '../scripts/dpi-smoke.cjs' : '../scripts/smoke.cjs').run(window, app, hardware, reporter, updates); return; }
   updates.start();
   await batteries.refresh(devices); updateTray();
@@ -313,16 +347,26 @@ app.whenReady().then(async () => {
   let polling = false;
   timer = setInterval(async () => { if (polling) return; polling = true; try { await poll(); } finally { polling = false; } }, 1000);
 }).catch(error => { console.error(error); if (!smoke) dialog.showErrorBox('Neuron could not start', error.message); app.exit(1); });
+async function finishShutdown() {
+  clearInterval(timer); updates?.stop(); clearShortcuts();
+  await Promise.all([bridge?.close(), stopBackgroundProcesses()]);
+  quitting = true; tray?.destroy();
+  // Cleanup and hardware restoration are complete. Do not re-enter the
+  // cancellable quit sequence from inside its own before-quit callback.
+  app.exit(0);
+}
 app.on('before-quit', event => {
   if (quitting) return;
   event.preventDefault();
+  if (installingUpdate || closing) return;
   if (applying) { notify('Wait for the device operation to finish before quitting.'); return; }
+  closing = true; updates?.stop();
   auto = false; player?.stop();
   (async () => {
     try {
       if (active) await restoreDevice(active.deviceId);
-      quitting = true; clearInterval(timer); updates?.stop(); clearShortcuts(); bridge?.close(); tray?.destroy(); app.quit();
-    } catch(error) { openWindow(); dialog.showErrorBox('Reconnect your Naga to restore it', `${error.message}\nOriginal settings are backed up locally. Reconnect the mouse and try Quit again.`); }
+      await finishShutdown();
+    } catch(error) { closing = false; openWindow(); dialog.showErrorBox('Reconnect your Naga to restore it', `${error.message}\nOriginal settings are backed up locally. Reconnect the mouse and try Quit again.`); }
   })();
 });
 app.on('window-all-closed', () => { if (smoke) app.quit(); });

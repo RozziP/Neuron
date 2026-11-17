@@ -1,8 +1,6 @@
-const { execFile } = require('node:child_process');
-const { promisify } = require('node:util');
+const { exec } = require('./processes.cjs');
 const path = require('node:path');
 const { normalizeReport, reportKey, cleanLabel } = require('./hardware-report.cjs');
-const exec = promisify(execFile);
 
 class HardwareEvidence {
   constructor(bridge, { run = exec, platform = process.platform, now = Date.now } = {}) {

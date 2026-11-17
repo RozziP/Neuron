@@ -24,25 +24,46 @@ async function run(window, app, hardware, reporter, updates) {
     await click('[data-nav="buttons"]');
     await waitFor('!!document.querySelector(".mouse-key")');
     // Exercise update checks through the real preload/IPC boundary without network or browser launches.
-    const originalFetch = updates.fetchRelease, originalOpen = updates.openExternal;
-    const openedReleases = [];
+    const originalFetch = updates.fetchRelease, originalDownload = updates.download, originalInstall = updates.install, originalCanInstall = updates.state.canInstall;
+    const installedUpdates = [];
     try {
       assert.equal(await js('document.querySelector("#app-version").textContent'), `v${app.getVersion()}`);
       assert.equal(await js('document.querySelector("#check-updates").textContent'), 'Check for updates');
-      updates.openExternal = async url => { openedReleases.push(url); };
+      updates.state.canInstall = true;
+      let finishDownload;
+      updates.download = async (_asset, _directory, progress) => { progress(42); return new Promise(resolve => { finishDownload = resolve; }); };
+      updates.install = async info => { installedUpdates.push(info); updates.state.phase = 'idle'; updates.publish(); };
       let finishCheck;
       updates.fetchRelease = () => new Promise(resolve => { finishCheck = resolve; });
       await click('#check-updates');
       await waitFor('document.querySelector("#check-updates").disabled');
       while (!finishCheck) await delay(10);
-      finishCheck({ ok: true, status: 200, json: async () => ({ tag_name: 'v99.0.0', draft: false, prerelease: false }) });
+      finishCheck({ ok: true, status: 200, json: async () => ({ tag_name: 'v99.0.0', draft: false, prerelease: false, assets: [{name:'Neuron-Setup-99.0.0-x64.exe',state:'uploaded',size:123,digest:'sha256:'+'a'.repeat(64),browser_download_url:'https://github.com/RozziP/Neuron/releases/download/v99.0.0/Neuron-Setup-99.0.0-x64.exe'}] }) });
       await waitFor('document.querySelector("#check-updates").textContent === "Update to v99.0.0" && !document.querySelector("#check-updates").disabled');
       window.setSize(1080,730); await screenshot('update-available');
       assert.equal(await js('document.querySelector("#check-updates").getBoundingClientRect().bottom <= innerHeight'), true, 'Update controls should fit in the compact sidebar.');
       window.setSize(1380,900);
+      await js('(()=>{draft.topBindings.left={type:"disabled",value:""};markDirty()})()');
       await click('#check-updates');
+      await waitFor('document.querySelector("#update-status").classList.contains("update-error")');
+      assert.equal(finishDownload,undefined,'Invalid pending edits must stop the update before downloading.');
+      assert.equal(await js('document.querySelector("main").inert'),false);
+      await js('(()=>{draft.topBindings.left={type:"default",value:""};macroDirty=true})()');
+      await click('[data-key-code=KeyQ]');
+      await click('#check-updates');
+      await waitFor('document.querySelector("#check-updates").textContent === "Downloading 42%"');
+      assert.equal(await js('document.querySelector("main").inert'), true);
+      assert.equal(await js('(await window.neuron.state()).profiles[0].bindings[0].value'), 'Q');
+      assert.equal(await js('macroDirty || dirty'),false);
+      finishDownload({file:'simulated-verified-installer.exe',sha256:'a'.repeat(64)});
       await waitFor('!document.querySelector("#check-updates").disabled');
-      assert.deepEqual(openedReleases, ['https://github.com/RozziP/Neuron/releases/tag/v99.0.0']);
+      assert.equal(installedUpdates.length,1); assert.equal(installedUpdates[0].version,'99.0.0');
+      assert.equal(await js('document.querySelector("main").inert'),false);
+      updates.download = async () => { throw new Error('Download interrupted. Try again.'); };
+      await click('#check-updates');
+      await waitFor('document.querySelector("#update-status").textContent.includes("Download interrupted")');
+      assert.equal(await js('document.querySelector("main").inert'),false);
+      assert.equal(installedUpdates.length,1);
       updates.fetchRelease = async () => { throw new Error('offline'); };
       await js('window.neuron.checkUpdates()');
       await waitFor('document.querySelector("#update-status").textContent.includes("connection")');
@@ -51,7 +72,7 @@ async function run(window, app, hardware, reporter, updates) {
       await js('window.neuron.checkUpdates()');
       await waitFor('document.querySelector("#update-status").textContent.includes("up to date")');
       assert.equal(await js('document.querySelector("#check-updates").textContent'), 'Check for updates');
-    } finally { updates.fetchRelease = originalFetch; updates.openExternal = originalOpen; }
+    } finally { updates.fetchRelease = originalFetch; updates.download = originalDownload; updates.install = originalInstall; updates.state.canInstall = originalCanInstall; }
     // Exercise native SendInput only after confirming our own test window has focus.
     const { Bridge } = require('../app/bridge.cjs');
     const { MacroPlayer } = require('../app/macros.cjs');

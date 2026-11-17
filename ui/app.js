@@ -127,6 +127,12 @@ function setDraft(profile) {
   draft=structuredClone(profile);dirty=false;selected=0;selectedMacro=null;recording=false;readback=null;deviceId=state.selectedDeviceId;
 }
 async function save() { recording = false; const profile = await api.save(draft); draft = structuredClone(profile); dirty = false; render(); toast('Profile saved locally. Apply to update your mouse.'); }
+async function saveBeforeUpdate() {
+  if (!state || busy || state.applying || switchingMouse || dpiReading) throw new Error('Wait for the current mouse operation to finish before updating.');
+  recording = false; cancelBindingCapture();
+  if (macroDirty) await saveMacros();
+  if (dirty) await save();
+}
 async function leaveDraft() { if (!dirty) return true; return confirmAction('Discard unsaved edits?', 'Switching profiles will discard edits that have not been saved.', 'Discard edits'); }
 async function selectProfile(id) { if (id === draft.id) return; if (!(await leaveDraft())) { updateHeader(); return; } const profile=state.profiles.find(p=>p.id===id);if(!profile)throw new Error('Profile not found for this mouse.');setDraft(profile); render(); }
 document.addEventListener('click', event => {

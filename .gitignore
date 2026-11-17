@@ -3,6 +3,7 @@ node_modules/
 dist/
 artifacts/
 native/NeuronBridge.exe
+native/NeuronUpdater.exe
 *.log
 .env
 .env.*

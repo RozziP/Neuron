@@ -1,6 +1,7 @@
 const RELEASES_API = 'https://api.github.com/repos/RozziP/Neuron/releases/latest';
 const RELEASES_URL = 'https://github.com/RozziP/Neuron/releases/tag/';
 const CHECK_INTERVAL = 6 * 60 * 60 * 1000;
+const { installerAsset, downloadInstaller } = require('./update-download.cjs');
 
 function parseVersion(value) {
   if (typeof value !== 'string' || value.length > 100) return null;
@@ -22,17 +23,19 @@ function newerRelease(release, currentVersion) {
 }
 
 class UpdateChecker {
-  constructor({ currentVersion, fetchRelease = fetch, onChange = () => {}, openExternal }) {
+  constructor({ currentVersion, fetchRelease = fetch, onChange = () => {}, install, directory, canInstall = false, download = downloadInstaller, startupError = '' }) {
     this.fetchRelease = fetchRelease;
     this.onChange = onChange;
-    this.openExternal = openExternal;
-    this.state = { currentVersion, checking: false, checkedAt: null, release: null, error: '' };
+    this.install = install; this.directory = directory; this.download = download;
+    this.state = { currentVersion, checking: false, checkedAt: null, release: null, error: '', installError: startupError, canInstall, phase: 'idle', progress: 0 };
+    this.installPending = null; this.abort = null;
     this.pending = null;
     this.timer = null;
   }
   snapshot() { return structuredClone(this.state); }
   publish() { this.onChange(this.snapshot()); }
   check() {
+    if (this.installPending) return Promise.resolve(this.snapshot());
     if (this.pending) return this.pending;
     // Defer the request so simultaneous startup and manual checks share one promise.
     this.pending = Promise.resolve().then(async () => {
@@ -52,6 +55,7 @@ class UpdateChecker {
             throw new Error('GitHub returned an unrecognized release. Try again later.');
           }
           this.state.release = newerRelease(release, this.state.currentVersion);
+          if (this.state.release) this.state.release.installer = installerAsset(release, this.state.release.version);
         }
         this.state.checkedAt = new Date().toISOString();
       } catch (error) {
@@ -73,11 +77,35 @@ class UpdateChecker {
     this.timer = setInterval(() => void this.check(), CHECK_INTERVAL);
     this.timer.unref?.();
   }
-  stop() { clearInterval(this.timer); this.timer = null; }
-  async openRelease() {
-    if (!this.state.release) throw new Error('No newer release is available. Check for updates first.');
-    // The main process constructs this URL from a validated tag in the fixed repository.
-    await this.openExternal(this.state.release.url);
+  stop() { clearInterval(this.timer); this.timer = null; this.abort?.abort(); }
+  installUpdate() {
+    if (this.installPending) return this.installPending;
+    this.installPending = Promise.resolve().then(async () => {
+      if (this.pending) await this.pending;
+      const release = structuredClone(this.state.release);
+      if (!release) throw new Error('No newer release is available. Check for updates first.');
+      if (!this.state.canInstall) throw new Error('Automatic updates require the installed Windows version of Neuron.');
+      if (!release.installer) throw new Error('This release does not contain a verified Windows installer. Try checking for updates later.');
+      this.abort = new AbortController();
+      const signal = AbortSignal.any([this.abort.signal, AbortSignal.timeout(10 * 60 * 1000)]);
+      this.state.phase = 'downloading'; this.state.progress = 0; this.state.error = ''; this.state.installError = ''; this.publish();
+      const downloaded = await this.download(release.installer, this.directory, progress => {
+        this.state.progress = progress; this.publish();
+      }, { signal });
+      try {
+        signal.throwIfAborted();
+        this.state.phase = 'installing'; this.publish();
+        const { discard, ...installer } = downloaded;
+        await this.install({ ...installer, version: release.version });
+      } catch (error) { await downloaded.discard?.(); throw error; }
+      return this.snapshot();
+    }).catch(error => {
+      this.state.phase = 'idle';
+      this.state.error = error.name === 'TimeoutError' || error.name === 'AbortError'
+        ? 'The update was interrupted. Try again.' : error.message;
+      this.publish(); throw new Error(this.state.error);
+    }).finally(() => { this.installPending = null; this.abort = null; });
+    return this.installPending;
   }
 }
 

@@ -68,13 +68,34 @@ test('no published release and equal or older versions do not offer an update', 
   }
 });
 
-test('opening an update only uses the fixed repository and validated release tag', async () => {
-  const opened = [];
-  const checker = new UpdateChecker({ currentVersion: '0.1.2', openExternal: async url => opened.push(url),
-    fetchRelease: async () => ({ ok: true, json: async () => ({ ...release('v0.2.0'), html_url: 'https://evil.example/download.exe' }) }) });
-  await assert.rejects(checker.openRelease(), /No newer release/);
-  await checker.check(); await checker.openRelease();
-  assert.deepEqual(opened, ['https://github.com/RozziP/Neuron/releases/tag/v0.2.0']);
-  checker.openExternal = async () => { throw new Error('Browser unavailable'); };
-  await assert.rejects(checker.openRelease(), /Browser unavailable/);
+test('installation uses verified metadata, shares concurrent downloads, and permits retry', async () => {
+  const states = [], installed = [];
+  const asset = { name:'Neuron-Setup-0.2.0-x64.exe', state:'uploaded', size:123,
+    digest:'sha256:'+'a'.repeat(64), browser_download_url:'https://github.com/RozziP/Neuron/releases/download/v0.2.0/Neuron-Setup-0.2.0-x64.exe' };
+  let finish, downloads=0;
+  const checker = new UpdateChecker({ currentVersion:'0.1.2', canInstall:true, directory:'cache',
+    onChange:s=>states.push(s), fetchRelease:async()=>({ok:true,json:async()=>({...release('v0.2.0'),assets:[asset]})}),
+    download:async (file,directory,progress)=>{downloads++;assert.equal(file.sha256,'a'.repeat(64));assert.equal(directory,'cache');progress(50);return new Promise(resolve=>finish=resolve);},
+    install:async info=>installed.push(info) });
+  await assert.rejects(checker.installUpdate(),/No newer/);
+  await checker.check();
+  const a=checker.installUpdate(), b=checker.installUpdate();assert.equal(a,b);
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(checker.snapshot().phase,'downloading');assert.equal(checker.snapshot().progress,50);
+  await checker.check();assert.equal(downloads,1);
+  finish({file:'verified.exe',sha256:'a'.repeat(64)});await a;
+  assert.equal(installed[0].version,'0.2.0');assert.equal(checker.snapshot().phase,'installing');
+  checker.install=async()=>{throw new Error('Restore failed');};checker.download=async()=>({file:'verified.exe'});
+  await assert.rejects(checker.installUpdate(),/Restore failed/);assert.equal(checker.snapshot().phase,'idle');
+  checker.install=async()=>{};await checker.installUpdate();
+});
+
+test('missing digests and development builds cannot start an installer; shutdown cancels downloads', async () => {
+  const checker=new UpdateChecker({currentVersion:'0.1.2',fetchRelease:async()=>response('v0.2.0'),install:()=>assert.fail('must not install')});
+  await checker.check();await assert.rejects(checker.installUpdate(),/installed Windows/);
+  checker.state.canInstall=true;await assert.rejects(checker.installUpdate(),/verified Windows installer/);
+  checker.state.release.installer={};
+  checker.download=async(_asset,_dir,_progress,{signal})=>new Promise((resolve,reject)=>signal.addEventListener('abort',()=>reject(signal.reason),{once:true}));
+  const pending=checker.installUpdate();await new Promise(resolve=>setImmediate(resolve));checker.stop();
+  await assert.rejects(pending,/interrupted/);assert.equal(checker.snapshot().phase,'idle');
 });

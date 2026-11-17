@@ -28,6 +28,19 @@ class Bridge {
       this.process.stdin.write(JSON.stringify({ ...args, method, id }) + '\n');
     });
   }
-  close() { this.process.stdin.end(); }
+  close() {
+    if (this.closing) return this.closing;
+    this.dead = true;
+    this.closing = new Promise(resolve => {
+      const child = this.process;
+      if (child.exitCode !== null || child.signalCode !== null || !child.pid) { resolve(); return; }
+      // Restoration has completed before shutdown calls this. Give the helper
+      // time to consume EOF, then stop only this owned helper if it is stuck.
+      const timeout = setTimeout(() => child.kill(), 2000);
+      child.once('close', () => { clearTimeout(timeout); resolve(); });
+      child.stdin.end();
+    });
+    return this.closing;
+  }
 }
 module.exports = { Bridge };

@@ -3,40 +3,33 @@
   const version = document.querySelector('#app-version');
   const status = document.querySelector('#update-status');
   const check = document.querySelector('#check-updates');
-  let opening = false;
-  let latest = {};
-  function showError(error) {
-    status.textContent = error.message;
-    status.classList.add('update-error');
-  }
+  let starting = false, latest = {};
   function render(state) {
     latest = state;
+    const downloading = state.phase === 'downloading', installing = state.phase === 'installing';
+    const working = starting || downloading || installing;
     version.textContent = `v${state.currentVersion}`;
-    check.disabled = state.checking || opening;
-    check.textContent = opening ? 'Opening…' : state.checking ? 'Checking…' : state.release ? `Update to v${state.release.version}` : 'Check for updates';
-    check.title = state.release
-      ? 'Download the installer from GitHub, quit Neuron from the tray, then run the installer.'
-      : state.checkedAt ? 'You’re up to date. Check again for updates.' : 'Check GitHub for updates.';
-    status.textContent = state.checking ? 'Checking GitHub…' : state.error || (state.release
-      ? 'A new version is available.' : state.checkedAt ? 'You’re up to date.' : 'Updates from GitHub');
-    status.classList.toggle('update-error', !!state.error && !state.checking);
+    check.disabled = !!(state.checking || working);
+    check.textContent = installing ? 'Restarting…' : downloading ? `Downloading ${state.progress}%` : starting ? 'Saving…'
+      : state.checking ? 'Checking…' : state.release ? `Update to v${state.release.version}` : 'Check for updates';
+    check.title = state.release ? 'Save your edits, download the update, and restart Neuron automatically.' : 'Check for updates.';
+    status.textContent = installing ? 'Restoring mouse mappings and installing the update…'
+      : downloading ? 'Downloading and verifying the installer…'
+      : state.installError || state.error || (state.checking ? 'Checking for updates…' : state.release
+        ? 'Update and restart automatically.' : state.checkedAt ? 'You’re up to date.' : 'Updates from GitHub');
+    status.classList.toggle('update-error', !!(state.error || state.installError) && !working && !state.checking);
+    for (const selector of ['main','nav','#mouse-list']) document.querySelector(selector).inert = working;
   }
   api.onUpdates(render);
-  api.updates().then(render).catch(showError);
+  api.updates().then(render).catch(error => { status.textContent = error.message; });
   check.onclick = async () => {
-    const openRelease = !!latest.release;
-    opening = openRelease;
-    render(latest);
-    check.disabled = true;
+    if (starting || ['downloading','installing'].includes(latest.phase)) return;
+    const updating = !!latest.release;
+    starting = updating; render(latest);
     try {
-      if (openRelease) await api.openUpdate();
+      if (updating) { await saveBeforeUpdate(); await api.installUpdate(); }
       else render(await api.checkUpdates());
-    }
-    catch (error) { showError(error); }
-    finally {
-      opening = false;
-      check.disabled = !!latest.checking;
-      check.textContent = latest.checking ? 'Checking…' : latest.release ? `Update to v${latest.release.version}` : 'Check for updates';
-    }
+    } catch (error) { latest = { ...latest, phase: 'idle', error: error.message }; }
+    finally { starting = false; render(latest); }
   };
 })();

@@ -4,7 +4,7 @@ ipcRenderer.on('state', (_event,state) => { mouseWorkspaceKey=state.selectedMous
 const call = async (name, ...args) => { const response = await ipcRenderer.invoke(name, {workspaceKey:mouseWorkspaceKey,args}); if (!response.ok) throw new Error(response.error); if(response.result?.selectedMouse)mouseWorkspaceKey=response.result.selectedMouse.key; return response.result; };
 contextBridge.exposeInMainWorld('neuron', {
   selectMouse: key => call('workspace:select', key),
-  updates: () => call('updates:get'), checkUpdates: () => call('updates:check'), openUpdate: () => call('updates:open'),
+  updates: () => call('updates:get'), checkUpdates: () => call('updates:check'), installUpdate: () => call('updates:install'),
   onUpdates: callback => { ipcRenderer.on('updates', (_event, status) => callback(status)); },
   games: () => call('games:get'), scanGames: () => call('games:scan'), addGame: id => call('games:add',id),
   createGame: (id,baseId,model,plate,executablePath,importFile=false) => call('games:create',id,baseId,model,plate,executablePath,importFile),
