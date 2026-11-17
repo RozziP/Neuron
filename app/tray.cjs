@@ -6,7 +6,7 @@ function trayState(devices, monitor, activeId) {
   const battery = selected && monitor.cache.get(selected.id);
   const lines = devices.map(d => `${d.name}: ${monitor.status(d)}`);
   return { level: battery?.level ?? null, charging: battery?.charging === true,
-    tooltip: ['Neuron', ...lines.length ? lines : ['No Naga connected']].join('\n'), lines };
+    tooltip: ['Neuron', ...lines.length ? lines : ['No mouse or receiver detected']].join('\n'), lines };
 }
 function trayPixels(level, charging = false) {
   const pixels = Buffer.alloc(32 * 32 * 4);

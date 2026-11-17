@@ -1,6 +1,6 @@
 {
   "name": "neuron",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": true,
   "description": "A local-first desktop control center for Razer Naga mice",
   "main": "app/main.cjs",
@@ -19,7 +19,7 @@
     "appId": "com.rozzip.neuron",
     "productName": "Neuron",
     "directories": { "output": "dist/release" },
-    "files": ["app/**/*", "ui/**/*", "native/NeuronBridge.exe", "scripts/game-registry.ps1", "scripts/smoke.cjs", "scripts/dpi-smoke.cjs", "README.md", "THIRD_PARTY.md", "package.json"],
+    "files": ["app/**/*", "ui/**/*", "native/NeuronBridge.exe", "scripts/game-registry.ps1", "scripts/hardware-evidence.ps1", "scripts/smoke.cjs", "scripts/dpi-smoke.cjs", "README.md", "THIRD_PARTY.md", "package.json"],
     "asarUnpack": ["**/*.node", "**/*.exe", "**/*.ps1"],
     "npmRebuild": false,
     "publish": null,

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, Tray, Menu, nativeImage, globalShortcut } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Tray, Menu, nativeImage, globalShortcut, shell } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
@@ -14,6 +14,7 @@ const { createWindowOpener } = require('./window.cjs');
 const { topControls, mouseActions, macroTriggers } = require('./controls.cjs');
 const { GameLibrary, createGameProfile, automaticTarget } = require('./games.cjs');
 const { HardwareReporter } = require('./hardware-reporting.cjs');
+const { HardwareEvidence } = require('./hardware-evidence.cjs');
 const reportingConfig = require('./reporting-config.json');
 const os = require('node:os');
 const dpiSmoke = process.argv.includes('--dpi-smoke-test');
@@ -50,7 +51,7 @@ async function createMainWindow() {
   return created;
 }
 function notify(message) { if (window && !window.isDestroyed()) window.webContents.send('notice', message); }
-function state() { return { profiles: store.profiles, macros: store.macros, devices: devices.map(({ paths, ...d }) => d), catalog, topControls, mouseActions, active: active && { profileId: active.profile.id, deviceId: active.deviceId, profile: active.profile }, applying, auto, error: lastError || store.warning }; }
+function state() { return { profiles: store.profiles, macros: store.macros, devices: devices.map(({ paths, ...d }) => d), hardwareReports: reporter?.summaries() || [], catalog, topControls, mouseActions, active: active && { profileId: active.profile.id, deviceId: active.deviceId, profile: active.profile }, applying, auto, error: lastError || store.warning }; }
 function changed() { updateTray(); if (window && !window.isDestroyed()) window.webContents.send('state', state()); }
 function updateTray() {
   if (!tray || tray.isDestroyed()) return;
@@ -188,6 +189,17 @@ app.whenReady().then(async () => {
     const profile=store.save(createGameProfile(game,base,model,plate,executablePath)); changed(); return profile;
   });
   handle('devices:scan', async () => { devices = await hardware.devices(); changed(); return state(); });
+  handle('hardware:confirm', (key,modelName) => {
+    if(!reporter)throw new Error('Hardware identification is not ready. Try again shortly.');
+    reporter.confirm(key,modelName);
+    void reporter.tick(hardware.enumerated||[]).catch(()=>{});
+    return state();
+  });
+  handle('hardware:open-issue', key => {
+    const report=reporter?.summaries().find(r=>r.key===key);
+    if(!report || !reporter.validIssueUrl(report.issueUrl))throw new Error('No associated GitHub issue is available yet.');
+    return shell.openExternal(report.issueUrl);
+  });
   handle('devices:dpi:apply', async (id, value) => {
     if (applying) throw new Error('A device operation is already running.');
     applying = true; changed();
@@ -229,13 +241,17 @@ app.whenReady().then(async () => {
   tray.on('double-click', openWindow);
   readyToOpen = true;
   await showWindow();
-  if (smoke) { await require(dpiSmoke ? '../scripts/dpi-smoke.cjs' : '../scripts/smoke.cjs').run(window, app, hardware); return; }
-  await batteries.refresh(devices); updateTray();
   try {
+    const evidence = new HardwareEvidence(bridge);
     reporter = new HardwareReporter({ directory: app.getPath('userData'), ...reportingConfig,
+      ...(smoke ? {endpoint:''} : {}), onChange: changed,
+      enrich: (report, records) => evidence.enrich(report, records),
       system: { appVersion: app.getVersion(), platform: process.platform, osVersion: os.release(), architecture: process.arch } });
-    void reporter.tick(hardware.enumerated).catch(() => {});
+    if(smoke)reporter.observe(hardware.enumerated||[]);
+    else void reporter.tick(hardware.enumerated).catch(() => {});
   } catch { /* Reporting configuration must never prevent using the app. */ }
+  if (smoke) { await require(dpiSmoke ? '../scripts/dpi-smoke.cjs' : '../scripts/smoke.cjs').run(window, app, hardware, reporter); return; }
+  await batteries.refresh(devices); updateTray();
   void library.scan().catch(error=>notify('Game scan: '+error.message));
   let polling = false;
   timer = setInterval(async () => { if (polling) return; polling = true; try { await poll(); } finally { polling = false; } }, 1000);

@@ -1,5 +1,15 @@
 # Naga hardware implementation notes
 
+## Compx receiver recognition
+
+The supplied Windows report identifies VID `3554`, PID `F55D`, release `0300`, manufacturer `Compx`, product `2.4G Wireless Receiver`. Its eight HID collections include keyboard (interface 0), system/consumer and vendor pages `FF02`–`FF05` (interface 1), and mouse usage page `0001` / usage `0002` (interface 2).
+
+Neuron recognizes the interface-2 mouse collection as one receiver and uses its path to distinguish attached units. Other collections are not separate mice or assumed configuration endpoints. Existing Naga device IDs and recovery backup keys are unchanged. Recognition only enumerates HID metadata; it sends no feature reports to the receiver. The Devices page and tray explicitly report limited support and unknown battery status. The receiver stays outside the profile catalog and automatic switching, and remains eligible for unsupported-hardware reporting.
+
+The USB ID alone cannot select a driver: both [m913-ctl's Compx M913 revision](https://github.com/Qehbr/m913-ctl) and [g49-web-control's G49 / M916 Pro 1K variants](https://github.com/dongkid/g49-web-control) document `3554:F55D`. No model, button count, sensor, configuration format, or battery command is inferred from this report. Enabling configuration requires additional model/board identification, protocol evidence for that variant, and verified backup/readback/restore behavior. Recognition is tested against all eight reported collections. Read-only enumeration on this computer also detected one matching receiver alongside a Naga Trinity; receiver configuration has not been tested.
+
+Local identification evidence: installed **Redragon M990-WL Gaming Mouse 1.0.2.0** software has `Sys64/usersetting/Config.ini` values that decode to VID `3554`, wireless PID `F55D`, and wired PID `F55E`, with a configured `MID=48`. This makes M990-WL a strong candidate for this computer’s receiver, but installed software and its configured MID are not a live model response. Do not label every receiver with this shared ID as M990-WL.
+
 ## Verified locally, 2026-11-17
 
 Windows reported a Naga Trinity, VID `1532`, PID `0067`. The mouse collection on interface `MI_00`, usage page 1 / usage 2, accepts feature reports when opened with `CreateFile` desired access 0 and shared read/write. Other tested keyboard and vendor collections returned Win32 error 1. No driver replacement, elevated service, or Synapse process was used.

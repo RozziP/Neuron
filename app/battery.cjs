@@ -28,6 +28,7 @@ class BatteryMonitor {
     }
   }
   status(device) {
+    if (device.support === 'recognition-only') return 'Receiver detected · Battery unavailable';
     if (!batteryModels.has(device.productId)) return 'Wired · no battery';
     const battery = this.cache.get(device.id);
     if (!battery) return 'Reading battery…';

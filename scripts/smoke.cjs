@@ -2,7 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const assert = require('node:assert/strict');
 const delay = ms => new Promise(r => setTimeout(r,ms));
-async function run(window, app) {
+async function run(window, app, hardware, reporter) {
   const directory = path.dirname(app.getPath('userData')); fs.mkdirSync(directory,{recursive:true});
   const failures=[];
   window.webContents.on('console-message', event => { if(event.level === 'error') failures.push(event.message); });
@@ -229,6 +229,58 @@ async function run(window, app) {
     const connected = await js('(await window.neuron.state()).devices.some(d=>d.productId===103)');
     if(connected) { await click('#inspect-device'); await waitFor('document.querySelectorAll(".readback span").length===12'); }
     await screenshot('devices');
+    // Exercise receiver recognition through the real scan IPC and renderer.
+    // The fixture has no transport: no commands can be sent to a physical receiver.
+    const { discoverReceivers } = require('../app/receivers.cjs');
+    const receiverRecord = {vendorId:13652,productId:62813,interface:2,usagePage:1,usage:2,path:'smoke-compx',product:'2.4G Wireless Receiver'};
+    const receiver = discoverReceivers([receiverRecord])[0];
+    const originalDevices = hardware.devices, realDevices = await hardware.devices();
+    const originalRecords = hardware.enumerated, originalEnrich = reporter.enrich;
+    try {
+      hardware.enumerated = [receiverRecord,{vendorId:0x1532,productId:0x0067,product:'Naga Trinity',interface:0,usagePage:1,usage:2,path:'smoke-trinity'}];
+      reporter.enrich = async report => ({...report,identification:{...report.identification,software:[{
+        source:'installed-driver-config',name:'Redragon M990-WL Gaming Mouse',version:'1.0.2.0',vendorId:13652,productId:62813,configuredModelId:48
+      }]}});
+      await reporter.tick(hardware.enumerated);
+      hardware.devices = async () => [...realDevices.filter(d => d.support !== 'recognition-only'), receiver];
+      await click('#scan-devices');
+      await waitFor('document.querySelectorAll(".receiver-device").length===1');
+      assert.match(await js('document.querySelector(".receiver-device").textContent'), /3554:F55D/);
+      assert.match(await js('document.querySelector(".receiver-device").textContent'), /model is unknown/);
+      const identity = '[data-report-key="3554:f55d"]';
+      await waitFor(`!!document.querySelector(${JSON.stringify(identity+' .identity-yes')})`);
+      assert.match(await js(`document.querySelector(${JSON.stringify(identity+' h2')}).textContent`),/Is your mouse a Redragon M990-WL/);
+      await screenshot('identify-mouse','[data-report-key="3554:f55d"]');
+      await click('[data-report-key="3554:f55d"] .identity-yes');
+      await waitFor('(await window.neuron.state()).hardwareReports.find(r=>r.key==="3554:f55d").status === "driver-needed"');
+      assert.equal(await js('(await window.neuron.state()).hardwareReports.find(r=>r.key==="3554:f55d").supported'),false);
+      await click('[data-report-key="1532:0067"] .identity-yes');
+      await waitFor('(await window.neuron.state()).hardwareReports.find(r=>r.key==="1532:0067").status === "local-only"');
+      assert.match(await js(`document.querySelector(${JSON.stringify(identity)}).textContent`),/issue stays open/);
+      await js(`document.querySelector(${JSON.stringify(identity+' details')}).open=true`);
+      await input('[data-report-key="3554:f55d"] .identity-name','Redragon M990-WL');
+      await js(`document.querySelector(${JSON.stringify(identity+' .identity-name')}).focus()`);
+      reporter.entries['3554:f55d']={issueUrl:'https://github.com/RozziP/Neuron/issues/1'};reporter.publish();
+      await waitFor(`!!document.querySelector(${JSON.stringify(identity+' .identity-issue')})`);
+      assert.equal(await js('document.activeElement.value'),'Redragon M990-WL','A report update must not erase an unfinished correction.');
+      await js(`document.querySelector(${JSON.stringify(identity+' .identity-form')}).requestSubmit()`);
+      await waitFor('(await window.neuron.state()).hardwareReports.find(r=>r.key==="3554:f55d").confirmedModel === "Redragon M990-WL"');
+      window.setSize(1080,730);await screenshot('identify-mouse-confirmed','[data-report-key="3554:f55d"]');window.setSize(1380,900);
+      hardware.devices = async () => [receiver];
+      await click('#scan-devices');
+      await waitFor('document.querySelector("#inspect-device").disabled');
+      assert.equal(await js('document.querySelector("#restore-device").disabled && document.querySelector("#apply").disabled'),true);
+      assert.equal(await js('document.querySelector("#device-select")'),null);
+      assert.match(await js('document.querySelector("#notice").textContent'), /receiver is detected/);
+      await screenshot('compx-receiver');
+      hardware.devices = async () => [];
+      await click('#scan-devices');
+      await waitFor('!document.querySelector(".receiver-device")');
+    } finally {
+      hardware.devices = originalDevices;
+      hardware.enumerated = originalRecords; reporter.enrich = originalEnrich; reporter.observe(originalRecords);
+      await js('window.neuron.scan()');
+    }
     // Invalid payloads must be rejected across the actual renderer/main boundary.
     assert.equal(await js(`(async()=>{try{await window.neuron.save({id:'invalid'});return false}catch{return true}})()`),true);
     // A launch from Start must recover a destroyed window in the running process.

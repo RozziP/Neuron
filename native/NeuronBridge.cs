@@ -12,6 +12,16 @@ class NeuronBridge {
     static extern SafeFileHandle CreateFile(string path, uint access, uint share, IntPtr security, uint creation, uint flags, IntPtr template);
     [DllImport("hid.dll", SetLastError = true)] static extern bool HidD_SetFeature(SafeFileHandle handle, byte[] data, int length);
     [DllImport("hid.dll", SetLastError = true)] static extern bool HidD_GetFeature(SafeFileHandle handle, byte[] data, int length);
+    [DllImport("hid.dll", SetLastError = true)] static extern bool HidD_GetPreparsedData(SafeFileHandle handle, out IntPtr data);
+    [DllImport("hid.dll")] static extern bool HidD_FreePreparsedData(IntPtr data);
+    [DllImport("hid.dll")] static extern int HidP_GetCaps(IntPtr data, out HIDP_CAPS caps);
+    [StructLayout(LayoutKind.Sequential)] struct HIDP_CAPS {
+        public ushort Usage, UsagePage, InputReportByteLength, OutputReportByteLength, FeatureReportByteLength;
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 17)] public ushort[] Reserved;
+        public ushort NumberLinkCollectionNodes, NumberInputButtonCaps, NumberInputValueCaps, NumberInputDataIndices;
+        public ushort NumberOutputButtonCaps, NumberOutputValueCaps, NumberOutputDataIndices;
+        public ushort NumberFeatureButtonCaps, NumberFeatureValueCaps, NumberFeatureDataIndices;
+    }
     [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr window, out uint pid);
     [DllImport("user32.dll")] static extern short GetAsyncKeyState(int key);
@@ -34,6 +44,25 @@ class NeuronBridge {
     }
     static object Handle(Dictionary<string, object> request) {
         string method = (string)request["method"];
+        if (method == "hidCapabilities") {
+            string path = (string)request["path"];
+            if (!System.Text.RegularExpressions.Regex.IsMatch(path, @"^\\\\\?\\hid#vid_[0-9a-f]{4}&pid_[0-9a-f]{4}[&#]", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+                throw new Exception("Only local USB HID collections are accepted.");
+            // Inspect Windows' descriptor summary only. No feature requests or input reads.
+            using (var handle = CreateFile(path, 0, 3, IntPtr.Zero, 3, 0, IntPtr.Zero)) {
+                IntPtr data;
+                if (handle.IsInvalid || !HidD_GetPreparsedData(handle, out data)) throw new Exception("HID capabilities unavailable.");
+                try {
+                    HIDP_CAPS caps;
+                    if (HidP_GetCaps(data, out caps) != 0x00110000) throw new Exception("Invalid HID capabilities.");
+                    return new { inputReportBytes = caps.InputReportByteLength, outputReportBytes = caps.OutputReportByteLength,
+                        featureReportBytes = caps.FeatureReportByteLength, linkCollections = caps.NumberLinkCollectionNodes,
+                        inputButtonCaps = caps.NumberInputButtonCaps, inputValueCaps = caps.NumberInputValueCaps,
+                        outputButtonCaps = caps.NumberOutputButtonCaps, outputValueCaps = caps.NumberOutputValueCaps,
+                        featureButtonCaps = caps.NumberFeatureButtonCaps, featureValueCaps = caps.NumberFeatureValueCaps };
+                } finally { HidD_FreePreparsedData(data); }
+            }
+        }
         if (method == "keyDown") {
             int key = Convert.ToInt32(request["key"]);
             if (key < 8 || key > 254) throw new Exception("Invalid virtual key.");

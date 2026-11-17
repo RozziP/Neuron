@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { catalog } = require('./catalog.cjs');
+const { discoverReceivers } = require('./receivers.cjs');
 const { packet, decode, bindingPacket, bindingFromReply } = require('./protocol.cjs');
 const { parseChord } = require('./keys.cjs');
 const { atomicWrite, validateProfile } = require('./store.cjs');
@@ -36,10 +37,10 @@ class Hardware {
       if (!model) continue;
       const id = `${d.productId}:${d.serialNumber || d.path.replace(/&MI_[0-9]+/i, '')}`;
       let device = devices.find(x => x.id === id);
-      if (!device) { device = { ...model, id, serial: d.serialNumber, paths: [], connected: true }; devices.push(device); }
+      if (!device) { device = { ...model, vendorId: d.vendorId, id, serial: d.serialNumber, paths: [], connected: true }; devices.push(device); }
       device.paths.push({ path: d.path, interface: d.interface, usage: d.usage });
     }
-    return devices;
+    return [...devices, ...discoverReceivers(this.enumerated)];
   }
   async exchange(devicePath, request) {
     const response = await this.bridge.call('exchange', { path: devicePath, report: request.toString('base64') });
@@ -47,6 +48,8 @@ class Hardware {
   }
   async readBattery(device) {
     return this.serialize(async () => {
+      if (device.support === 'recognition-only' || (device.vendorId !== undefined && device.vendorId !== 0x1532))
+        throw new Error('Battery readings are not supported for this receiver yet.');
       const control = device.paths.find(p => p.interface === 0 && p.usage === 2);
       if (!control) throw new Error('Battery control interface unavailable.');
       const level = batteryFromReply(await this.exchange(control.path, batteryPacket(device.productId)));
@@ -60,7 +63,9 @@ class Hardware {
   }
   async target(id) {
     const devices = await this.devices(), device = devices.find(d => d.id === id);
-    if (!device) throw new Error('The selected Naga is disconnected.');
+    if (!device) throw new Error('The selected mouse or receiver is disconnected.');
+    if (device.support === 'recognition-only') throw new Error(device.supportMessage);
+    if (device.vendorId !== 0x1532) throw new Error('No verified hardware driver for this device.');
     if (device.productId !== 0x0067) throw new Error('This model is recognized; its hardware driver is not verified yet.');
     const control = device.paths.find(p => p.interface === 0 && p.usage === 2);
     if (!control) throw new Error('The Trinity control interface is unavailable.');

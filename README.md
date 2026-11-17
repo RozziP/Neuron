@@ -4,7 +4,7 @@ A Windows desktop control center for Razer Naga mice. The first milestone is but
 
 ## Run
 
-Download the Windows x64 installer from [the latest release](https://github.com/RozziP/Neuron/releases/latest), run `Neuron-Setup-0.1.2-x64.exe`, and launch Neuron from the Start menu. The installer includes the app runtime and native helper; Node.js and administrator access are not required. This release is unsigned, so Windows may display an unknown-publisher warning.
+Download the Windows x64 installer from [the latest release](https://github.com/RozziP/Neuron/releases/latest), run `Neuron-Setup-0.1.3-x64.exe`, and launch Neuron from the Start menu. The installer includes the app runtime and native helper; Node.js and administrator access are not required. This release is unsigned, so Windows may display an unknown-publisher warning.
 
 Open `dist/Neuron-win32-x64/Neuron.exe` for the local portable build. Keep the executable with the rest of its folder. No Node installation or administrator access is needed for that build.
 
@@ -62,12 +62,15 @@ Import/export uses versioned `.json` files. New imported profiles get new IDs. O
 | Profile persistence and UI flows | Automated tests |
 | Automatic game switching | Implemented; needs acceptance testing in real games |
 | Other Naga models, Bluetooth, new USB identities | Planned; hardware writes disabled |
+| Compx `3554:F55D` 2.4 GHz receiver | Recognition only; mouse model unknown, configuration and battery reads unavailable |
 | Trinity top controls (clicks, wheel, tilt, DPI buttons) | Editable; all mappings read from hardware, DPI-up rebind/readback/restore verified; physical press testing remains |
 | 2-button plate, Hypershift, onboard macros | Planned |
 | Trinity current DPI | Mouse-wide X/Y sensitivity with verified readback and rollback; hardware reads verified, physical write acceptance pending |
 | DPI stages, polling rate, lighting | Planned |
 
 An experiment on one Trinity does not verify every firmware revision. See [hardware notes](docs/hardware.md) for the transport and observed behavior.
+
+Compx `3554:F55D` receivers appear in **Your devices** and the tray. This identity is shared by several mouse models, so it is not a selectable button-profile model. Receiver detection does not establish that its paired mouse is awake or connected. Button remapping, DPI, macro assignments, and battery reads require a verified model-specific driver; the hardware report alone cannot supply that protocol. Automatic unsupported-mouse reporting remains enabled for this receiver.
 
 ## Data and recovery
 
@@ -77,9 +80,11 @@ Apply failures attempt to restore the immediately preceding mappings. Devices â†
 
 ## Automatic hardware reports
 
-Neuron 0.1.1 automatically sends unsupported-mouse hardware metadata to its reporting service, which creates a public issue in [RozziP/Neuron](https://github.com/RozziP/Neuron) only when no matching open or closed issue exists. No login, prompt, or browser interaction is required. Reports include mouse model/USB IDs, HID interface details, and app/OS versions; serial numbers, device paths, profiles, games, and input events are excluded.
+Neuron automatically sends unsupported-mouse identification evidence to its reporting service, which creates a public issue in [RozziP/Neuron](https://github.com/RozziP/Neuron) only when no matching open or closed issue exists. No login, prompt, or browser interaction is required. Reports include USB IDs and labels, HID interface/report capabilities, Windows device/driver descriptions, matching mouse-software configuration evidence where supported, and app/OS versions. The initial software adapter recognizes matching Redragon/Compx configurations. Installed software is reported as a candidate, not confirmed hardware identity. Serial numbers, device paths, profiles, games, input events, full configuration files and unrelated installed software are excluded.
 
-The reporting service is live on Cloudflare Workers Free. Reports are also saved locally, successful submissions are remembered, and failed attempts retry automatically. Mouse-capable interfaces on receivers or composite devices may need maintainer triage. See [deployment, token renewal, and duplicate handling](docs/hardware-reporting.md).
+**Devices â†’ mouse identification** asks whether a suggested model is correct and lets you enter a different brand/model. Confirmations are saved and included in reports. If both the app and service have a working driver for that exact device connection, the associated automatic hardware issue is closed. Unsupported receivers and manually maintained issues stay open; a guessed or confirmed name alone never enables a driver.
+
+The reporting service is live on Cloudflare Workers Free. Reports are also saved locally, successful submissions are remembered, and failed attempts retry automatically. Version 2 sends newly discovered evidence to an existing issue once, including for previously reported receivers; identical evidence does not create repeated comments. Mouse-capable interfaces on receivers or composite devices may need maintainer triage. See [deployment, token renewal, and duplicate handling](docs/hardware-reporting.md).
 
 ## Check and build
 
@@ -95,6 +100,6 @@ The smoke test skips its native key-injection check if another application has f
 
 `scripts/hardware-roundtrip.cjs` is an explicit hardware test: it briefly changes Trinity side button 1 to F24 and restores both original slots in `finally`, with a recovery snapshot in `artifacts`. Do not run it while gaming. It is intentionally excluded from normal tests.
 
-The renderer is sandboxed, has no Node access or network permission, and talks through a fixed preload API. The main process validates IPC origins and profile payloads. The native helper only handles Razer feature reports, foreground process lookup, key state, and key taps. Hardware operations are serialized; single-instance locking prevents competing Neuron sessions.
+The renderer is sandboxed, has no Node access or network permission, and talks through a fixed preload API. The main process validates IPC origins and profile payloads. The native helper handles Razer feature reports, read-only HID descriptor summaries, foreground process lookup, key state, and key taps. Hardware operations are serialized; single-instance locking prevents competing Neuron sessions.
 
 This project is independent of Razer and is not affiliated with or endorsed by Razer. Protocol references and third-party dependencies are recorded in [THIRD_PARTY.md](THIRD_PARTY.md).

@@ -60,7 +60,7 @@ test('battery polling throttles reads, clears failures and refreshes after recon
   await monitor.refresh([], 30001); assert.equal(monitor.cache.size, 0);
   fail = false; await monitor.refresh([device], 30002); assert.equal(calls, 3);
   assert.equal(trayState([wired, device], monitor, wired.id).level, 75);
-  assert.match(trayState([], monitor).tooltip, /No Naga connected/);
+  assert.match(trayState([], monitor).tooltip, /No mouse or receiver detected/);
 });
 
 test('tray uses the active wireless device, includes all devices and renders 0–100 distinctly', () => {
