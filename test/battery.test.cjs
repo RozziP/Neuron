@@ -76,3 +76,21 @@ test('tray uses the active wireless device, includes all devices and renders 0â€
   assert.notDeepEqual(trayPixels(50), trayPixels(50, true));
   assert.equal(trayPixels(100).length, 32 * 32 * 4);
 });
+
+test('tray percentage and bar remain distinct at native Windows icon sizes', () => {
+  for(const size of [16,20,24,32,40,48,64]) {
+    const images=[0,1,20,75,99,100].map(level=>trayPixels(level,false,size));
+    assert.equal(new Set(images.map(b=>b.toString('hex'))).size,images.length);
+    for(const pixels of images)assert.equal(pixels.length,size*size*4);
+  }
+  const pixel=(image,x,y)=>[...image.subarray((y*16+x)*4,(y*16+x)*4+3)];
+  const empty=trayPixels(0,false,16),low=trayPixels(1,false,16),nearFull=trayPixels(99,false,16),full=trayPixels(100,false,16);
+  assert.deepEqual(pixel(empty,1,13),[90,85,82],'0% has no filled capacity');
+  assert.notDeepEqual(pixel(low,1,13),pixel(empty,1,13),'1% remains visible');
+  assert.deepEqual(pixel(nearFull,13,13),pixel(empty,13,13),'99% keeps an unfilled end');
+  assert.notDeepEqual(pixel(full,13,13),pixel(empty,13,13),'100% fills the entire bar');
+  for(let y=1;y<=9;y++)assert.ok(Array.from({length:16},(_,x)=>pixel(full,x,y)).some(rgb=>rgb.every(v=>v===255)),'full-height white numerals');
+  const charging=trayPixels(100,true,16);
+  assert.deepEqual(full.subarray(0,16*11*4),charging.subarray(0,16*11*4),'charging keeps the same readable percentage');
+  assert.throws(()=>trayPixels(50,false,15),/size/);
+});

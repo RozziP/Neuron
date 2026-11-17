@@ -8,7 +8,7 @@ const { newProfile, validateProfile } = require('./store.cjs');
 const { MouseWorkspaces } = require('./mouse-workspaces.cjs');
 const { Hardware } = require('./hardware.cjs');
 const { BatteryMonitor } = require('./battery.cjs');
-const { trayState, trayPixels } = require('./tray.cjs');
+const { trayState, trayImage } = require('./tray.cjs');
 const { catalog } = require('./catalog.cjs');
 const { MacroPlayer } = require('./macros.cjs');
 const { createWindowOpener } = require('./window.cjs');
@@ -67,7 +67,7 @@ function updateTray() {
   const status = trayState(devices, batteries, active?.deviceId), key = JSON.stringify(status);
   if (key === lastTrayState) return;
   lastTrayState = key;
-  tray.setImage(nativeImage.createFromBitmap(trayPixels(status.level, status.charging), { width: 32, height: 32 }));
+  tray.setImage(trayImage(nativeImage, status.level, status.charging));
   tray.setToolTip(status.tooltip.slice(0, 127));
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: 'Open Neuron', click: openWindow },
@@ -322,7 +322,7 @@ app.whenReady().then(async () => {
   handle('device:restore', id => {workspaces.assertDevice(id,devices);return restoreDevice(id, { restoreDpi: true });});
   handle('macro:stop', () => player.stop());
   handle('window:minimize', () => window.minimize());
-  tray = new Tray(nativeImage.createFromBitmap(trayPixels(null), { width: 32, height: 32 }));
+  tray = new Tray(trayImage(nativeImage, null));
   updateTray();
   tray.on('double-click', openWindow);
   readyToOpen = true;

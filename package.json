@@ -1,6 +1,6 @@
 {
   "name": "neuron",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "private": true,
   "description": "A local-first desktop control center for Razer Naga mice",
   "main": "app/main.cjs",

@@ -1,5 +1,18 @@
 const { hasBattery } = require('./battery.cjs');
-const digits = ['111101101101111', '010110010010111', '111001111100111', '111001111001111', '101101111001001', '111100111001111', '111100111101111', '111001001001001', '111101111101111', '111101111001111'];
+// Nine-pixel numerals stay legible in a 16px notification-area icon.
+// The narrow 1 lets 100 fit without reducing the height of the other digits.
+const digits = [
+  ['01110','10001','10001','10001','10001','10001','10001','10001','01110'],
+  ['010','110','010','010','010','010','010','010','111'],
+  ['01110','10001','00001','00001','00110','01000','10000','10000','11111'],
+  ['11110','00001','00001','00001','01110','00001','00001','00001','11110'],
+  ['10001','10001','10001','10001','11111','00001','00001','00001','00001'],
+  ['11111','10000','10000','10000','11110','00001','00001','00001','11110'],
+  ['01110','10000','10000','10000','11110','10001','10001','10001','01110'],
+  ['11111','00001','00001','00010','00100','00100','01000','01000','01000'],
+  ['01110','10001','10001','10001','01110','10001','10001','10001','01110'],
+  ['01110','10001','10001','10001','01111','00001','00001','00001','01110']
+];
 function trayState(devices, monitor, activeId) {
   const wireless = devices.filter(d => d.support !== 'recognition-only' && hasBattery(d));
   const selected = wireless.find(d => d.id === activeId) || wireless[0];
@@ -8,14 +21,17 @@ function trayState(devices, monitor, activeId) {
   return { level: battery?.level ?? null, charging: battery?.charging === true,
     tooltip: ['Neuron', ...lines.length ? lines : ['No mouse or receiver detected']].join('\n'), lines };
 }
-function trayPixels(level, charging = false) {
-  const pixels = Buffer.alloc(32 * 32 * 4);
+function trayPixels(level, charging = false, size = 32) {
+  if (!Number.isInteger(size) || size < 16 || size > 64) throw new Error('Invalid tray icon size.');
+  const pixels = Buffer.alloc(size * size * 4);
   const valid = Number.isInteger(level) && level >= 0 && level <= 100;
-  // Native Windows bitmap pixels are BGRA. Draw on a 16px grid for tray readability.
+  // Native Windows bitmap pixels are BGRA. Snap each shape to physical pixels
+  // at every scale instead of asking Windows to shrink a single 32px bitmap.
   const color = charging ? [255, 205, 100] : level <= 20 ? [100, 135, 255] : [180, 235, 124];
   function dot(x, y, ink) {
-    for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) {
-      const i = ((y * 2 + dy) * 32 + x * 2 + dx) * 4;
+    for (let py = Math.round(y * size / 16); py < Math.round((y + 1) * size / 16); py++)
+      for (let px = Math.round(x * size / 16); px < Math.round((x + 1) * size / 16); px++) {
+      const i = (py * size + px) * 4;
       pixels.set([...ink, 255], i);
     }
   }
@@ -25,13 +41,25 @@ function trayPixels(level, charging = false) {
       if (x <= 4 || x >= 11 || Math.abs(y - x) <= 1) dot(x, y, [180, 235, 124]);
     return pixels;
   }
-  const text = String(level), start = Math.floor((16 - (text.length * 4 - 1)) / 2);
-  for (let n = 0; n < text.length; n++) for (let y = 0; y < 5; y++) for (let x = 0; x < 3; x++)
-    if (digits[Number(text[n])][y * 3 + x] === '1') dot(start + n * 4 + x, y + 3, color);
-  // Battery outline and proportional fill below the percentage digits.
-  for (let y = 10; y <= 13; y++) for (let x = 1; x <= 13; x++)
-    if (y === 10 || y === 13 || x === 1 || x === 13 || x <= 1 + Math.round(level * 11 / 100)) dot(x, y, color);
-  dot(14, 11, color); dot(14, 12, color);
+  const glyphs = [...String(level)].map(n => digits[Number(n)]);
+  const width = glyphs.reduce((sum, glyph) => sum + glyph[0].length, 0) + glyphs.length - 1;
+  let left = Math.floor((16 - width) / 2);
+  for (const glyph of glyphs) {
+    for (let y = 0; y < 9; y++) for (let x = 0; x < glyph[0].length; x++)
+      if (glyph[y][x] === '1') dot(left + x, y + 1, [255, 255, 255]);
+    left += glyph[0].length + 1;
+  }
+  // A solid three-pixel bar keeps the remaining capacity visibly separate.
+  // Leave at least one empty pixel below 100%; 0% has no colored fill.
+  const fill = level === 100 ? 13 : level === 0 ? 0 : Math.max(1, Math.min(12, Math.round(level * 13 / 100)));
+  for (let y = 12; y <= 14; y++) for (let x = 1; x <= 13; x++) dot(x, y, x <= fill ? color : [90, 85, 82]);
+  dot(14, 13, [160, 155, 152]);
   return pixels;
 }
-module.exports = { trayState, trayPixels };
+function trayImage(nativeImage, level, charging = false) {
+  const image = nativeImage.createEmpty();
+  for (const size of [16, 20, 24, 32, 40, 48, 64])
+    image.addRepresentation({ width:size, height:size, scaleFactor:size/16, buffer:trayPixels(level, charging, size) });
+  return image;
+}
+module.exports = { trayState, trayPixels, trayImage };
