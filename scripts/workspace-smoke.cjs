@@ -12,7 +12,7 @@ async function run(window,app,hardware) {
   const rejected=async code=>assert.equal(await js(`try{${code};return false;}catch{return true;}`),true,code);
   const screenshot=async name=>{await delay(180);const file=path.join(directory,name+'.png');fs.writeFileSync(file,(await window.webContents.capturePage()).toPNG());screenshots.push(file);};
   window.webContents.on('console-message',event=>{if(event.level==='error')errors.push(event.message);});
-  const a={id:'workspace-a',vendorId:0x1532,productId:103,name:'Naga Trinity',mappingPlates:[2,7,12],paths:[],connected:true};
+  const a={id:'workspace-a',vendorId:0x1532,productId:103,name:'Naga Trinity',dpi:{min:100,max:16000},mappingPlates:[2,7,12],paths:[],connected:true};
   const b={...a,id:'workspace-b'};
   const red={id:'workspace-red',vendorId:0x3554,productId:0xf55d,modelId:0xf55d,name:'Redragon M990-WL',mappingPlates:[16],paths:[],connected:true};
   const unknown={id:'workspace-unknown',vendorId:0x3554,productId:0x9999,name:'Unknown mouse',connection:'receiver',mappingPlates:[],paths:[],connected:true};

@@ -13,6 +13,7 @@ function decode(raw, request) {
   if (report[5] > 80) throw new Error('Invalid HID response payload length.');
   if (request[6] === 0x07 && [0x80, 0x84].includes(request[7]) && report[5] < 2) throw new Error('Incomplete battery response.');
   if (request[6] === 2 && request[7] === 0x8c && report[5] < 10) throw new Error('Incomplete button mapping response.');
+  if (request[6] === 4 && request[7] === 0x85 && report[5] < 7) throw new Error('Incomplete DPI response.');
   if (request[6] === 0 && request[7] === 0xbf && (report[8] > 26 || report[5] < 1 + report[8] * 3)) throw new Error('Incomplete paired-mouse response.');
   return report.subarray(8, 88);
 }

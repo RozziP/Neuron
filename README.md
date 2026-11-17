@@ -39,11 +39,11 @@ The system tray icon displays the battery percentage and a small charge bar for 
 
 ## DPI
 
-Open **DPI**, set 100–16,000 DPI with the sliders, exact inputs, or quick picks, then click **Apply DPI**. Unlink the axes for independent horizontal and vertical sensitivity. **Read DPI** reads the connected Trinity without changing it.
+Open **DPI** to read the selected mouse, then use the sliders, exact inputs, or quick picks and click **Apply DPI**. Trinity supports 100–16,000 DPI; Naga V2 Pro supports 100–30,000 over wired USB, its receiver, or Mouse Dock Pro with V2 Pro identified. Unlink the axes for independent horizontal and vertical sensitivity. **Read DPI** refreshes the reading without changing the mouse. Apply stays disabled until a read succeeds.
 
 Sensitivity is mouse-wide. Saving, applying, importing, or switching button profiles does not change it. Neuron reads the current mouse sensitivity when opening DPI; it does not store DPI in profiles. Leaving a game or quitting Neuron restores button mappings without changing sensitivity. **Restore original** on Devices explicitly restores both mappings and the first backed-up DPI.
 
-This controls current sensitivity only; the mouse's DPI buttons still cycle its existing onboard stages. It does not rewrite those stages or guarantee persistence after unplugging the mouse. The newer remapping adapters do not enable non-Trinity DPI controls.
+This controls current sensitivity only; the mouse's DPI buttons still cycle its existing onboard stages. It does not rewrite those stages or guarantee persistence after unplugging the mouse. V2 Pro support is experimental and tested with simulated transports; physical validation on the reported mouse and dock remains pending. Bluetooth and other mouse models do not have DPI configuration support yet.
 
 `npm run smoke:dpi` checks the Electron page, validation, profile independence, reload, disconnection, and compact layout with isolated test profiles and a simulated DPI device. It does not write to physical hardware.
 

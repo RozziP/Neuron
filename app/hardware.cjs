@@ -11,7 +11,7 @@ const { packet, decode, bindingPacket, bindingFromReply, functionBlock } = requi
 const { parseChord } = require('./keys.cjs');
 const { atomicWrite, validateProfile } = require('./store.cjs');
 const { topControls, mouseActions, macroTriggers } = require('./controls.cjs');
-const { validateDpi, dpiPacket, dpiFromReply, sameDpi } = require('./dpi.cjs');
+const { dpiCapabilities, validateDpi, dpiPacket, dpiFromReply, sameDpi } = require('./dpi.cjs');
 const { batteryPacket, batteryFromReply } = require('./battery.cjs');
 const redragon = require('./redragon.cjs');
 const same = (a, b) => JSON.stringify(functionBlock(a)) === JSON.stringify(functionBlock(b));
@@ -74,7 +74,7 @@ class Hardware {
         name:`${model.name.replace(/ · .+$/, '')} · ${receiver.name}`
       });
     }
-    return [...devices, ...receivers].map(d => ({...d, ...mappingCapabilities(d)}));
+    return [...devices, ...receivers].map(d => ({...d, ...mappingCapabilities(d), dpi:dpiCapabilities(d)}));
   }
   async selectModel(id, model) {
     const device = (await this.devices()).find(d => d.id === id);
@@ -123,23 +123,24 @@ class Hardware {
     return bindingFromReply(await this.exchange(device.path, packet(0x8c, [slot, source],2,driver?.requestSize??10,driver?.transaction??0x1f)), slot, source, driver?.raw, driver?.readLayout);
   }
   async readDpi(device) {
-    return dpiFromReply(await this.exchange(device.path, dpiPacket()));
+    const limits = dpiCapabilities(device);
+    if (!limits) throw new Error('DPI control is available for Naga Trinity and Naga V2 Pro on supported USB connections.');
+    return dpiFromReply(await this.exchange(device.path, dpiPacket()), limits);
   }
   async inspectDpi(id) {
     return this.serialize(async () => { const device = await this.target(id);
-      if (device.productId !== 0x0067) throw new Error('DPI control is currently available for Trinity.');
       return this.readDpi(device); });
   }
   async writeDpi(device, dpi) {
-    const value = validateDpi(dpi);
-    await this.exchange(device.path, dpiPacket(value));
+    const limits = dpiCapabilities(device), value = validateDpi(dpi, limits);
+    await this.exchange(device.path, dpiPacket(value, limits));
     if (!sameDpi(await this.readDpi(device), value)) throw new Error('DPI readback does not match the requested sensitivity.');
   }
   async applyDpi(id, input) {
-    const value = validateDpi(input);
     return this.serialize(async () => {
       const device = await this.target(id);
-      if (device.productId !== 0x0067) throw new Error('DPI control is currently available for Trinity.');
+      if (!dpiCapabilities(device)) throw new Error('DPI control is available for Naga Trinity and Naga V2 Pro on supported USB connections.');
+      const value = validateDpi(input, dpiCapabilities(device));
       const before = await this.readDpi(device);
       const file = this.backupFile(device);
       const backup = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : { version: 1, deviceId: device.id, created: new Date().toISOString(), entries: [] };
@@ -241,7 +242,7 @@ class Hardware {
       const backup = JSON.parse(fs.readFileSync(file, 'utf8'));
       if (backup.version!==1 || backup.deviceId !== device.id || !Array.isArray(backup.entries)) throw new Error('Invalid original-settings backup.');
       for (const entry of backup.entries) await this.write(device, entry);
-      if (restoreDpi && backup.dpi) await this.writeDpi(device, validateDpi(backup.dpi));
+      if (restoreDpi && backup.dpi) await this.writeDpi(device, validateDpi(backup.dpi, dpiCapabilities(device)));
       return { message: `Original mappings${restoreDpi && backup.dpi ? ' and DPI' : ''} restored and verified.` };
     });
   }

@@ -1,8 +1,9 @@
 // USB product IDs: OpenRazer driver/razermouse_driver.h (see docs/hardware.md).
 const { mappingDrivers } = require('./drivers.cjs');
+const { dpiCapabilities } = require('./dpi.cjs');
 const {devices,layoutFor,controlsFor,sideLabels} = require('./razer-layouts.cjs');
 const catalog = devices.map(({productId,name,bluetooth,batteryExpected}) => ({productId,name,bluetooth,batteryExpected,buttons:layoutFor(productId).side,
-  vendorId:0x1532, brand:'Razer',
+  vendorId:0x1532, brand:'Razer', dpi:dpiCapabilities({vendorId:0x1532,productId}),
   driver:mappingDrivers.get(productId)?.id || null, mappingPlates:mappingDrivers.get(productId)?.plates || [],
   physicalPlates:layoutFor(productId).plates, controls:controlsFor(productId),
   sideLabels:Object.fromEntries(layoutFor(productId).plates.map(n=>[n,sideLabels(n)])),

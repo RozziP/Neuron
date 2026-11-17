@@ -64,8 +64,8 @@ test('missing or fixed controls cannot satisfy primary-click protection or compi
   const p=newProfile('Naga X',0x0096,12);p.topBindings.left={type:'disabled'};p.topBindings['tilt-left']={type:'mouse',value:'left'};
   assert.throws(()=>validateProfile(p),/Left click/);
   p.topBindings.left={type:'default'};assert.throws(()=>actionsFor(p),/absent or fixed/);
-  const v2=newProfile('V2',0x00a8,12);v2.topBindings['dpi-up']={type:'key',value:'Q'};
-  assert.throws(()=>actionsFor(v2),/fixed/);
+  const basilisk=newProfile('Basilisk',0x00cb,2);basilisk.topBindings['wheel-mode']={type:'key',value:'Q'};
+  assert.throws(()=>actionsFor(basilisk),/fixed/);
 });
 test('best-guess preflight fails before any writes and remains reportable',async t=>{
   const f=fixture(t,0x0096),p=newProfile('Guess',0x0096,12);f.reject(65);
@@ -87,12 +87,13 @@ test('80-byte DeathAdder requests preserve raw originals and Original restores s
   for(const bytes of f.memory.values())assert.deepEqual(bytes,f.original);
   const saved=new Store(f.dir).save(p);assert.equal(new Store(f.dir).profiles.find(p=>p.id===saved.id).bindings[0].type,'default');
 });
-test('inspection includes body controls and fixed controls without guessing their assignments',async t=>{
+test('inspection includes V2 top buttons without guessing unreadable assignments',async t=>{
   const f=fixture(t,0x00a8);f.reject(52);
   const result=await f.hardware.inspect(f.device.id,12);
   assert.equal(result.controls.length,22);assert.equal(result.bindings.length,12);
   assert.equal(result.controls.find(c=>c.source===52).status,'unavailable');
-  assert.equal(result.controls.find(c=>c.source===109).status,'fixed');
+  assert.equal(result.controls.find(c=>c.source===109).status,'readable');
+  assert.equal(result.controls.find(c=>c.source===96).status,'readable');
   assert.equal(f.calls.some(r=>r[7]===12),false);
 });
 test('an unchanged non-Naga profile is a no-op and can be restored on exit',async t=>{

@@ -66,9 +66,10 @@ add([0x0050],7,{...tilt,...dpiPair});
 add([0x0096],12,dpiCycle);
 add([0x0067],12,{...tilt,'dpi-up':11,'dpi-down':12},{plates:[2,7,12],validation:'locally-tested',slots:[2,1],readSlot:1});
 add([0x008f,0x0090,0x0092],12,{...tilt,...dpiPair,...profile},{plates:[2,6,12],validation:'community-protocol'});
-add([0x00a7,0x00a8,0x00a9],12,{...tilt,...profile},{plates:[2,6,12],validation:'community-protocol',fixed:[
-  {id:'dpi-up',name:'Front wheel-stage button',source:109,note:'Keeps its built-in function; remapping is unavailable.'},
-  {id:'dpi-down',name:'Rear wheel-stage button',source:96,note:'Keeps its built-in function; remapping is unavailable.'}]});
+// V2 Pro capture validates live writes/restoration on 0x6D and 0x60 even
+// though the reference application's UI still labels them read-only.
+add([0x00a7,0x00a8,0x00a9],12,{...tilt,'dpi-up':109,'dpi-down':96,...profile},{plates:[2,6,12],validation:'community-protocol',
+  labels:{'dpi-up':'Scroll mode button (front)','dpi-down':'DPI cycle button (rear)'}});
 add([0x00b4],12,{...tilt,'dpi-up':11,'dpi-down':12},{slots:[1,0],validation:'community-protocol',labels:{'dpi-up':'Index button (front)','dpi-down':'Index button (rear)'}});
 add([0x00e7,0x00e8,0x00e9],12,{...tilt,'dpi-up':11,'dpi-down':12,pinky:57,'scroll-front':106,'scroll-rear':128,...profile},{plates:[2,6,12],validation:'community-protocol',labels:{'dpi-up':'Index button (front)','dpi-down':'Index button (rear)'}});
 // Only the V4 Pro's 80-byte button requests are capture-backed here.

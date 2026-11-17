@@ -51,7 +51,7 @@ switches. Other body controls are included only in their assigned model layout.
 | Naga X | Twelve | DPI cycle, no wheel tilt |
 | Naga Trinity | Two, seven, twelve | Wheel tilt and DPI pair |
 | Naga Pro | Two, six, twelve | Wheel tilt, DPI pair and underside profile |
-| Naga V2 Pro | Two, six, twelve | Wheel tilt and profile; both wheel-stage buttons shown as fixed |
+| Naga V2 Pro | Two, six, twelve | Wheel tilt, profile, front scroll-mode and rear DPI-cycle buttons |
 | Naga V2 HyperSpeed | Twelve | Wheel tilt and both index buttons |
 | Naga V3 Pro | Two, six, twelve | Wheel tilt, both index buttons, pinky, front/rear scroll buttons and profile |
 | Basilisk / Essential / V2 / Ultimate | Two | Model-specific clutch, DPI, tilt and profile controls |
@@ -102,7 +102,8 @@ identities, using a read-only pairing query when available or the saved user
 choice. Accessory passthrough remains experimental. Choosing another model
 does not enable an arbitrary transport. Bluetooth configuration, Hypershift
 layers, raw input streaming and onboarding every shared dongle are outside
-this expansion. DPI support remains Trinity-only; battery support is separate.
+this expansion. DPI supports Trinity and Naga V2 Pro on wired USB, its receiver,
+or an identified V2 Pro through Dock Pro; battery support is separate.
 New wireless identities without a battery adapter report unavailable.
 
 ## Validation

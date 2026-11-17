@@ -5,7 +5,9 @@ const os = require('node:os');
 const path = require('node:path');
 const { Store, newProfile, validateProfile } = require('../app/store.cjs');
 const { Hardware } = require('../app/hardware.cjs');
-const { dpiPacket, dpiFromReply } = require('../app/dpi.cjs');
+const { dpiCapabilities, dpiPacket, dpiFromReply } = require('../app/dpi.cjs');
+const hid = require('node-hid');
+const { checksum } = require('../app/protocol.cjs');
 function fixture(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'neuron-dpi-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
@@ -85,4 +87,73 @@ test('DPI writes require matching readback and surface restoration failures', as
   await assert.rejects(h.writeDpi(device, { x: 800, y: 800 }), /readback/);
   h.writeDpi = async () => { throw new Error('Disconnected'); };
   await assert.rejects(h.applyDpi(device.id, { x: 800, y: 800 }), /Previous DPI could not be restored/);
+});
+
+function v2Fixture(t, pid) {
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'neuron-v2-dpi-'));
+  t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
+  t.mock.method(hid,'devicesAsync',async()=>[{vendorId:0x1532,productId:pid,serialNumber:'v2',path:'v2-control',interface:0,usagePage:1,usage:2}]);
+  let dpi={x:24000,y:30000},failure=null,paired=0x00a8;
+  const requests=[],writes=[];
+  const h=new Hardware({call:async(_,{path:target,report})=>{
+    assert.equal(target,'v2-control');
+    const req=Buffer.from(report,'base64');requests.push(req);
+    const reply=Buffer.from(req);reply[0]=2;
+    if(req[6]===0 && req[7]===0xbf)reply.set([1,1,paired>>8,paired&255],8);
+    else {
+      assert.equal(req[1],0x1f);assert.equal(req[6],4);assert.equal(req[5],7);assert.equal(req[8],0);
+      assert.ok([5,0x85].includes(req[7]),'No DPI stage or button writes');
+      if(req[7]===5) {
+        const backupFile=h.backupFile({productId:pid,modelId:paired,id:pid===0x00a4?'5426:164:v2-control':`${pid}:v2`});
+        assert.deepEqual(JSON.parse(fs.readFileSync(backupFile)).dpi,{x:24000,y:30000});
+        const next={x:req.readUInt16BE(9),y:req.readUInt16BE(11)};writes.push(next);
+        if(failure!=='ignore' || next.x!==800)dpi=next;
+        if(failure==='ack' && next.x===800)throw new Error('Lost acknowledgement');
+      }
+      reply.set([0,dpi.x>>8,dpi.x&255,dpi.y>>8,dpi.y&255,0,0],8);
+      if(failure==='short' && req[7]===0x85)reply[5]=0;
+      if(failure==='echo' && req[7]===0x85)reply[8]=1;
+    }
+    reply[88]=checksum(reply);return {report:reply.toString('base64')};
+  }},dir);
+  return {h,requests,writes,current:()=>dpi,fail:mode=>{failure=mode;},pair:model=>{paired=model;h.dockModels.clear();}};
+}
+
+for(const pid of [0x00a7,0x00a8,0x00a4]) {
+  test(`V2 DPI reads actual XY, verifies changes and restores 30k originals via ${pid.toString(16)}`,async t=>{
+    const f=v2Fixture(t,pid),[device]=await f.h.devices();
+    if(pid===0x00a4) {
+      await f.h.selectModel(device.id,0x00a8);
+      assert.equal((await f.h.devices())[0].modelSource,'manual');
+    }
+    assert.deepEqual(device.dpi,{min:100,max:30000});
+    assert.deepEqual(await f.h.inspectDpi(device.id),{x:24000,y:30000});
+    await f.h.applyDpi(device.id,{x:20000,y:30000});
+    await f.h.applyDpi(device.id,{x:20000,y:30000});assert.equal(f.writes.length,1);
+    await assert.rejects(f.h.applyDpi(device.id,{x:30001,y:800}),/30,000/);assert.equal(f.writes.length,1);
+    await f.h.restore(device.id);assert.deepEqual(f.current(),{x:20000,y:30000});
+    await f.h.restore(device.id,{restoreDpi:true});assert.deepEqual(f.current(),{x:24000,y:30000});
+    assert.equal(f.requests.some(r=>r[6]===2),false);
+  });
+  test(`V2 DPI rejects malformed reads and rolls back failed writes via ${pid.toString(16)}`,async t=>{
+    const f=v2Fixture(t,pid),[device]=await f.h.devices();
+    for(const mode of ['short','echo']) {
+      f.fail(mode);await assert.rejects(f.h.inspectDpi(device.id),/DPI response/);
+      await assert.rejects(f.h.applyDpi(device.id,{x:800,y:900}),/DPI response/);assert.equal(f.writes.length,0);
+    }
+    for(const mode of ['ignore','ack']) {
+      f.fail(mode);await assert.rejects(f.h.applyDpi(device.id,{x:800,y:900}),/Previous DPI restored/);
+      assert.deepEqual(f.current(),{x:24000,y:30000});
+    }
+  });
+}
+test('DPI capabilities require a supported model and transport, not just a manually supplied model ID',()=>{
+  for(const device of [{productId:0x00a4},{productId:0x00a4,modelId:0x0067},{productId:0x00a4,modelId:0x00e8},{productId:0x00a9},{vendorId:0x3554,productId:0x00a7},{productId:0xf55d,modelId:0x00a8}])assert.equal(dpiCapabilities(device),null);
+});
+test('dock loses DPI capability when its identified mouse changes',async t=>{
+  const f=v2Fixture(t,0x00a4),[device]=await f.h.devices();
+  await f.h.inspectDpi(device.id);f.pair(0x00e8);await f.h.devices();
+  const before=f.requests.length;
+  await assert.rejects(f.h.applyDpi(device.id,{x:800,y:800}),/supported USB/);
+  assert.equal(f.requests.length,before);assert.equal(f.writes.length,0);
 });

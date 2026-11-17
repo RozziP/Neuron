@@ -102,7 +102,7 @@ for(const pid of [0x008f,0x0090,0x00a7,0x00a8,0x00b4,0x00e7,0x00e8,0x00a4]) {
     await f.h.restore(d.id); for(const block of f.memory.values())assert.deepEqual(block,f.original);
     const game={...profile,executable:'Game.exe'};
     assert.equal(automaticTarget([game],[d],null,{executable:'Game.exe'},null).deviceId,d.id);
-    await assert.rejects(f.h.applyDpi(d.id,{x:800,y:800}),/Trinity/);
+    if (![0x00a7,0x00a8,0x00a4].includes(pid)) await assert.rejects(f.h.applyDpi(d.id,{x:800,y:800}),/Trinity/);
   });
 }
 
@@ -112,6 +112,25 @@ test('modern failures roll back even after a write applied but its acknowledgeme
   await assert.rejects(f.h.apply(d.id,p),/Previous mappings restored/);
   for(const block of f.memory.values())assert.deepEqual(block,f.original);
 });
+
+for(const pid of [0x00a7,0x00a8,0x00a4]) {
+  test(`V2 Pro top buttons preserve native actions through apply, restore and rollback via ${pid.toString(16)}`,async t=>{
+    const f=fixture(t,pid,pid===0x00a4?0x00a8:null),[d]=await f.h.devices();
+    const nativeFront=[0x12,1,4,0,0,0,0],nativeRear=[6,1,6,0,0,0,0];
+    f.memory.set('0:109',nativeFront);f.memory.set('0:96',nativeRear);
+    const p=newProfile('Top buttons',d.modelId??pid,6);
+    p.topBindings['dpi-up']={type:'key',value:'Q'};p.topBindings['dpi-down']={type:'key',value:'E'};
+    await f.h.apply(d.id,p);
+    assert.deepEqual(f.memory.get('0:109'),[2,2,0,20,0,0,0]);
+    assert.deepEqual(f.memory.get('0:96'),[2,2,0,8,0,0,0]);
+    await f.h.restore(d.id);
+    assert.deepEqual(f.memory.get('0:109'),nativeFront);assert.deepEqual(f.memory.get('0:96'),nativeRear);
+    p.topBindings['dpi-down']={type:'key',value:'A'};f.reject(96);
+    await assert.rejects(f.h.apply(d.id,p),/Previous mappings restored/);
+    assert.deepEqual(f.memory.get('0:109'),nativeFront);assert.deepEqual(f.memory.get('0:96'),nativeRear);
+    assert.equal(f.requests.some(r=>r[6]===4),false,'Button remapping must not change DPI.');
+  });
+}
 
 test('model, plate and short-reply mismatches fail before writes',async t=>{
   const f=fixture(t,0x00a8),[d]=await f.h.devices();
@@ -123,11 +142,11 @@ test('model, plate and short-reply mismatches fail before writes',async t=>{
   assert.equal(driverFor({vendorId:0x3554,productId:0xf55d,modelId:0x00a8}),null);
 });
 
-test('Pro plates use published IDs and V2 fixed stage buttons cannot be written',()=>{
+test('Pro plates and V2 top buttons use their model-specific source IDs',()=>{
   const two=newProfile('Two',0x0090,2);
   assert.deepEqual(actionsFor(two).map(a=>a.source),[5,4]);
   const six=newProfile('Six',0x00a8,6);six.topBindings['dpi-up']={type:'key',value:'Q'};six.topBindings['dpi-down']={type:'key',value:'E'};
-  assert.throws(()=>actionsFor(six),/absent or fixed/);
+  assert.deepEqual(actionsFor(six).slice(-2).map(a=>a.source),[109,96]);
   six.topBindings['dpi-up']={type:'default',value:''};six.topBindings['dpi-down']={type:'default',value:''};
   assert.deepEqual(actionsFor(six).map(a=>a.source),[80,81,82,83,84,85]);
 });
