@@ -1,5 +1,6 @@
 {
   "name": "neuron-hardware-reports",
+  "account_id": "a30779d8b14a1f0e42cd0283a7d1bdb1",
   "main": "index.mjs",
   "compatibility_date": "2026-11-17",
   "workers_dev": true,

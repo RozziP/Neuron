@@ -1,4 +1,4 @@
 {
   "repository": "RozziP/Neuron",
-  "endpoint": ""
+  "endpoint": "https://neuron-hardware-reports.rozzipeter.workers.dev/hardware-report"
 }

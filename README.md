@@ -73,9 +73,9 @@ Apply failures attempt to restore the immediately preceding mappings. Devices â†
 
 ## Automatic hardware reports
 
-When a reporting endpoint is configured in the release, Neuron automatically sends unsupported-mouse hardware metadata to its reporting service, which creates a public issue in [RozziP/Neuron](https://github.com/RozziP/Neuron) only when no matching open or closed issue exists. No login, prompt, or browser interaction is required. Reports include mouse model/USB IDs, HID interface details, and app/OS versions; serial numbers, device paths, profiles, games, and input events are excluded.
+Neuron 0.1.1 automatically sends unsupported-mouse hardware metadata to its reporting service, which creates a public issue in [RozziP/Neuron](https://github.com/RozziP/Neuron) only when no matching open or closed issue exists. No login, prompt, or browser interaction is required. Reports include mouse model/USB IDs, HID interface details, and app/OS versions; serial numbers, device paths, profiles, games, and input events are excluded.
 
-The current source saves sanitized reports locally; network submission becomes active after the maintainer deploys the Cloudflare Worker and configures its endpoint. See [deployment and duplicate handling](docs/hardware-reporting.md).
+The reporting service is live on Cloudflare Workers Free. Reports are also saved locally, successful submissions are remembered, and failed attempts retry automatically. Mouse-capable interfaces on receivers or composite devices may need maintainer triage. See [deployment, token renewal, and duplicate handling](docs/hardware-reporting.md).
 
 ## Check and build
 

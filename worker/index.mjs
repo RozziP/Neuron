@@ -54,14 +54,19 @@ export class HardwareIssues {
     this.queued++;
     const task = this.queue.then(async () => {
       try { return await this.report(await readReport(request)); }
-      catch { return json({ error: 'Reporting temporarily unavailable.' }, 503, 600); }
+      catch (error) {
+        console.warn('Hardware reporting failed:', error instanceof Error ? error.message : 'Unknown error');
+        return json({ error: 'Reporting temporarily unavailable.' }, 503, 600);
+      }
     });
     this.queue = task.catch(() => {});
     try { return await task; } finally { this.queued--; }
   }
   async github(suffix, init = {}) {
     return fetch(`https://api.github.com/repos/${this.env.GITHUB_REPOSITORY}${suffix}`, {
-      ...init, redirect: 'error', signal: AbortSignal.timeout(12000),
+      // Workers supports manual/follow only. A 3xx is rejected by the callers,
+      // so the GitHub credential is never forwarded to a redirected origin.
+      ...init, redirect: 'manual', signal: AbortSignal.timeout(12000),
       headers: { Authorization: `Bearer ${this.env.GITHUB_TOKEN}`, Accept: 'application/vnd.github+json',
         'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'Neuron-hardware-reporter', 'Content-Type': 'application/json' }
     });
@@ -70,7 +75,7 @@ export class HardwareIssues {
     // Use the repository listing, not the eventually indexed search endpoint.
     for (let page = 1; page <= 20; page++) {
       const response = await this.github(`/issues?state=all&sort=created&direction=asc&per_page=100&page=${page}`);
-      if (!response.ok) throw new Error('GitHub listing failed.');
+      if (!response.ok) throw new Error(`GitHub listing failed (${response.status}).`);
       const issues = await response.json();
       if (!Array.isArray(issues)) throw new Error('Invalid GitHub response.');
       const existing = issues.find(issue => matchesIssue(issue, report));

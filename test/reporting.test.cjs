@@ -107,6 +107,16 @@ test('known-model support titles also suppress duplicates without IDs', async ()
   assert.equal(matchesIssue({ title: 'Naga X screenshots' }, report()), false);
 });
 
+test('GitHub requests use the Workers-compatible redirect mode and reject redirects', async t => {
+  const s = await service();
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    assert.match(url, /^https:\/\/api\.github\.com\/repos\/RozziP\/Neuron\/issues\?/);
+    assert.equal(options.redirect, 'manual');
+    return new Response(null, { status: 302, headers: { location: 'https://example.invalid' } });
+  });
+  await assert.rejects(s.existingIssue(report()), /GitHub listing failed \(302\)/);
+});
+
 test('lost creation response reconciles the original issue without a second POST', async () => {
   const s = await service(); let creates = 0;
   s.github = async (_url, init) => { if (init) { creates++; throw new Error('response lost'); } return Response.json([]); };
