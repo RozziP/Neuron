@@ -22,7 +22,7 @@ async function run(window,app,hardware) {
   hardware.apply=async id=>{operations.push(['apply',id]);return{message:'Simulated application'};};
   hardware.restore=async id=>{if(failRestore)throw new Error('Simulated restore failure');operations.push(['restore',id]);return{message:'Simulated restoration'};};
   try {
-    await wait('!!document.querySelector("#profile-select option")');
+    await wait('!!document.querySelector("#content .card")');
     await js('await window.neuron.scan()');
     let s=await snapshot();
     const keys=Object.fromEntries(s.mouseWorkspaces.filter(w=>w.deviceId).map(w=>[w.deviceId,w.key]));
@@ -89,6 +89,31 @@ async function run(window,app,hardware) {
     assert.equal(await js('return document.querySelector("main").scrollWidth<=document.querySelector("main").clientWidth'),true);
     assert.equal(await js('return document.querySelector("#check-updates").getBoundingClientRect().bottom<=innerHeight'),true);
     await screenshot('mouse-workspace-compact');
+    // Losing dock identification must not discard an in-progress Naga binding.
+    const dock={id:'workspace-dock',vendorId:0x1532,productId:0x00a4,connection:'dock',name:'Razer Mouse Dock Pro',paths:[],connected:true};
+    const naga={...dock,modelId:0x00a8,name:'Naga V2 Pro · Razer Mouse Dock Pro',mappingPlates:[2,6,12]};
+    devices=[naga];await js('await window.neuron.scan()');s=await snapshot();
+    const nagaKey=s.mouseWorkspaces.find(w=>w.deviceId===dock.id).key;
+    await js(`await window.neuron.selectMouse(${JSON.stringify(nagaKey)})`);
+    await click('[data-type="disabled"]');
+    const pending=await js('return structuredClone(draft)');
+    assert.equal(await js('return dirty'),true);
+    devices=[dock];await js('await window.neuron.scan()');s=await snapshot();
+    assert.equal(s.selectedMouse.key,nagaKey);assert.equal(s.selectedDeviceId,null);
+    assert.equal(await js('return dirty'),true);assert.deepEqual(await js('return draft'),pending);
+    assert.equal(await js('return document.querySelector("#apply").disabled'),true);
+    await rejected(`await window.neuron.apply(${JSON.stringify(dock.id)},${JSON.stringify(pending)})`);
+    devices=[naga];await js('await window.neuron.scan()');
+    assert.equal((await snapshot()).selectedDeviceId,dock.id);
+    assert.equal(await js('return dirty'),true);assert.deepEqual(await js('return draft'),pending);
+    assert.equal(await js('return document.querySelector("#apply").disabled'),false);
+    // A clean installation with no mouse still offers manual selection.
+    await js('const empty={...state,selectedMouse:null,selectedDeviceId:null,mouseWorkspaces:[],devices:[],profiles:[],macros:[]};state=undefined;draft=null;acceptState(empty);');
+    assert.equal(await js('return document.querySelectorAll(".mouse-workspace").length'),0);
+    assert.equal(await js(`return !!document.querySelector('#content [data-nav="devices"]')`),true);
+    await click('#content [data-nav="devices"]');
+    assert.equal(await js('return !!document.querySelector("#manual-mouse-form")'),true);
+    await js('acceptState(await window.neuron.state())');
     assert.deepEqual(errors,[]);
     fs.writeFileSync(path.join(directory,'workspace-smoke-result.json'),JSON.stringify({ok:true,hardwareWrites:false,screenshots,operations},null,2));
     console.log('Mouse workspace desktop smoke passed.');app.quit();

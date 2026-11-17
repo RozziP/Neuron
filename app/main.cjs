@@ -111,8 +111,8 @@ function reserveShortcuts(profile) {
 }
 function requireStore() { if(!store)throw new Error('Identify the selected mouse before creating profiles.');return store; }
 function requireScope(key) {if(workspaces.selectedKey!==key)throw new Error('The selected mouse changed. Try again in its workspace.');}
-function reconcileWorkspaces() {
-  workspaces.reconcile(devices);store=workspaces.storeFor();
+function reconcileWorkspaces(options) {
+  workspaces.reconcile(devices,options);store=workspaces.storeFor();
   if(active && !store?.profiles.some(p=>p.id===active.profile.id)){player.stop();clearShortcuts();active=null;}
 }
 async function selectWorkspace(key) {
@@ -263,7 +263,7 @@ app.whenReady().then(async () => {
     if (applying) throw new Error('Wait for the current device operation to finish.');
     if (active?.deviceId === id) throw new Error('Restore the active mouse before changing its model.');
     applying = true; changed();
-    try { await hardware.selectModel(id, model); devices = await hardware.devices(); reconcileWorkspaces(); }
+    try { await hardware.selectModel(id, model); devices = await hardware.devices(); reconcileWorkspaces({clearedDeviceId:model===null?id:null}); }
     finally { applying = false; changed(); }
     return state();
   });

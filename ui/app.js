@@ -182,11 +182,11 @@ $('#apply').onclick = () => act(async () => {
 });
 $('#stop-macro').onclick = () => act(async () => { await api.stop(); toast('Macro playback stopped.'); });
 function acceptState(next) {
-  const oldKey=state?.selectedMouse?.key, switched=oldKey!==next.selectedMouse?.key;
+  const initial=!state, oldKey=state?.selectedMouse?.key, switched=oldKey!==next.selectedMouse?.key;
   const devicesChanged=JSON.stringify(state?.devices)!==JSON.stringify(next.devices);
   const identitiesChanged=JSON.stringify(state?.hardwareReports)!==JSON.stringify(next.hardwareReports);
   state=next;deviceId=state.selectedDeviceId;
-  if(switched || (draft && !state.profiles.some(p=>p.id===draft.id))) {
+  if(initial || switched || (draft && !state.profiles.some(p=>p.id===draft.id))) {
     dirty=false;macroDirty=false;recording=false;capturingBinding=false;readback=null;selectedMacro=null;
     dpiValues.clear();dpiReadback.clear();
     macroDraft=structuredClone(state.macros);
