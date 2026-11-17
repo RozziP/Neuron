@@ -2,7 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const assert = require('node:assert/strict');
 const delay = ms => new Promise(r => setTimeout(r,ms));
-async function run(window, app, hardware, reporter) {
+async function run(window, app, hardware, reporter, updates) {
   const directory = path.dirname(app.getPath('userData')); fs.mkdirSync(directory,{recursive:true});
   const failures=[];
   window.webContents.on('console-message', event => { if(event.level === 'error') failures.push(event.message); });
@@ -21,6 +21,36 @@ async function run(window, app, hardware, reporter) {
   };
   try {
     await waitFor('!!document.querySelector(".mouse-key")');
+    // Exercise update checks through the real preload/IPC boundary without network or browser launches.
+    const originalFetch = updates.fetchRelease, originalOpen = updates.openExternal;
+    const openedReleases = [];
+    try {
+      assert.equal(await js('document.querySelector("#app-version").textContent'), `v${app.getVersion()}`);
+      assert.equal(await js('document.querySelector("#open-update").hidden'), true);
+      updates.openExternal = async url => { openedReleases.push(url); };
+      let finishCheck;
+      updates.fetchRelease = () => new Promise(resolve => { finishCheck = resolve; });
+      await click('#check-updates');
+      await waitFor('document.querySelector("#check-updates").disabled');
+      while (!finishCheck) await delay(10);
+      finishCheck({ ok: true, status: 200, json: async () => ({ tag_name: 'v99.0.0', draft: false, prerelease: false }) });
+      await waitFor('!document.querySelector("#open-update").hidden && !document.querySelector("#check-updates").disabled');
+      assert.equal(await js('document.querySelector("#open-update").textContent'), 'Update to v99.0.0');
+      window.setSize(1080,730); await screenshot('update-available');
+      assert.equal(await js('document.querySelector("#check-updates").getBoundingClientRect().bottom <= innerHeight'), true, 'Update controls should fit in the compact sidebar.');
+      window.setSize(1380,900);
+      await click('#open-update');
+      await waitFor('!document.querySelector("#open-update").disabled');
+      assert.deepEqual(openedReleases, ['https://github.com/RozziP/Neuron/releases/tag/v99.0.0']);
+      updates.fetchRelease = async () => { throw new Error('offline'); };
+      await click('#check-updates');
+      await waitFor('document.querySelector("#update-status").textContent.includes("connection")');
+      assert.equal(await js('document.querySelector("#open-update").hidden'), false);
+      updates.fetchRelease = async () => ({ ok: true, status: 200, json: async () => ({ tag_name: `v${app.getVersion()}`, draft: false, prerelease: false }) });
+      await click('#check-updates');
+      await waitFor('document.querySelector("#update-status").textContent.includes("up to date")');
+      assert.equal(await js('document.querySelector("#open-update").hidden'), true);
+    } finally { updates.fetchRelease = originalFetch; updates.openExternal = originalOpen; }
     // Exercise native SendInput only after confirming our own test window has focus.
     const { Bridge } = require('../app/bridge.cjs');
     const { MacroPlayer } = require('../app/macros.cjs');

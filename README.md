@@ -4,9 +4,13 @@ A Windows desktop control center for Razer Naga mice. The first milestone is but
 
 ## Run
 
-Download the Windows x64 installer from [the latest release](https://github.com/RozziP/Neuron/releases/latest), run `Neuron-Setup-0.1.3-x64.exe`, and launch Neuron from the Start menu. The installer includes the app runtime and native helper; Node.js and administrator access are not required. This release is unsigned, so Windows may display an unknown-publisher warning.
+Download the Windows x64 installer from [the latest release](https://github.com/RozziP/Neuron/releases/latest), run `Neuron-Setup-0.1.4-x64.exe`, and launch Neuron from the Start menu. The installer includes the app runtime and native helper; Node.js and administrator access are not required. This release is unsigned, so Windows may display an unknown-publisher warning.
 
 Open `dist/Neuron-win32-x64/Neuron.exe` for the local portable build. Keep the executable with the rest of its folder. No Node installation or administrator access is needed for that build.
+
+The sidebar shows the running app version and checks GitHub for a newer stable release at startup and every six hours. **Check for updates** checks manually. When available, **Update to…** opens that release on GitHub: download the Windows installer, quit Neuron from the tray so it restores your mouse mappings, and run the installer. Updating keeps your saved profiles and macros. Installation is manual; portable users can use the installer to switch to an installed copy. Offline checks can be retried without interrupting mouse controls.
+
+For an existing installer-based installation, run the new installer directly; no manual uninstall is needed. It detects the existing installation folder and replaces the previous version while retaining profiles, shared macros, and original-mouse backups in `%APPDATA%/Neuron`.
 
 For the development checkout, double-click `Start Neuron.cmd` after installing dependencies, or use:
 

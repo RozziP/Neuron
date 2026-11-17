@@ -1,6 +1,8 @@
 const { contextBridge, ipcRenderer } = require('electron');
 const call = async (name, ...args) => { const response = await ipcRenderer.invoke(name, ...args); if (!response.ok) throw new Error(response.error); return response.result; };
 contextBridge.exposeInMainWorld('neuron', {
+  updates: () => call('updates:get'), checkUpdates: () => call('updates:check'), openUpdate: () => call('updates:open'),
+  onUpdates: callback => { ipcRenderer.on('updates', (_event, status) => callback(status)); },
   games: () => call('games:get'), scanGames: () => call('games:scan'), addGame: id => call('games:add',id),
   createGame: (id,baseId,model,plate,executablePath,importFile=false) => call('games:create',id,baseId,model,plate,executablePath,importFile),
   saveMacros: macros => call('macros:save',macros),

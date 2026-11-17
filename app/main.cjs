@@ -15,6 +15,7 @@ const { topControls, mouseActions, macroTriggers } = require('./controls.cjs');
 const { GameLibrary, createGameProfile, automaticTarget } = require('./games.cjs');
 const { HardwareReporter } = require('./hardware-reporting.cjs');
 const { HardwareEvidence } = require('./hardware-evidence.cjs');
+const { UpdateChecker } = require('./updates.cjs');
 const reportingConfig = require('./reporting-config.json');
 const os = require('node:os');
 const dpiSmoke = process.argv.includes('--dpi-smoke-test');
@@ -26,7 +27,7 @@ if (smoke) {
 app.setName('Neuron');
 const ownsInstance = app.requestSingleInstanceLock();
 if (!ownsInstance) app.exit(0);
-let window, tray, bridge, store, hardware, player, timer, library, reporter;
+let window, tray, bridge, store, hardware, player, timer, library, reporter, updates;
 let batteries, lastTrayState = '';
 let readyToOpen = false;
 let devices = [], active = null, applying = false, auto = true, quitting = false, fallbackId = null, lastError = '', autoCandidate = '', autoSince = 0, retryAfter = 0;
@@ -164,6 +165,11 @@ app.whenReady().then(async () => {
   hardware = new Hardware(bridge, app.getPath('userData')); player = new MacroPlayer(bridge, notify);
   batteries = new BatteryMonitor(hardware);
   devices = await hardware.devices(); fallbackId = store.profiles.find(p => !p.executable)?.id;
+  updates = new UpdateChecker({ currentVersion: app.getVersion(), openExternal: url => shell.openExternal(url),
+    onChange: status => { if (window && !window.isDestroyed()) window.webContents.send('updates', status); } });
+  handle('updates:get', () => updates.snapshot());
+  handle('updates:check', () => updates.check());
+  handle('updates:open', () => updates.openRelease());
   handle('state:get', () => state());
   handle('games:get', () => library.data);
   handle('games:scan', () => library.scan());
@@ -250,7 +256,8 @@ app.whenReady().then(async () => {
     if(smoke)reporter.observe(hardware.enumerated||[]);
     else void reporter.tick(hardware.enumerated).catch(() => {});
   } catch { /* Reporting configuration must never prevent using the app. */ }
-  if (smoke) { await require(dpiSmoke ? '../scripts/dpi-smoke.cjs' : '../scripts/smoke.cjs').run(window, app, hardware, reporter); return; }
+  if (smoke) { await require(dpiSmoke ? '../scripts/dpi-smoke.cjs' : '../scripts/smoke.cjs').run(window, app, hardware, reporter, updates); return; }
+  updates.start();
   await batteries.refresh(devices); updateTray();
   void library.scan().catch(error=>notify('Game scan: '+error.message));
   let polling = false;
@@ -264,7 +271,7 @@ app.on('before-quit', event => {
   (async () => {
     try {
       if (active) await restoreDevice(active.deviceId);
-      quitting = true; clearInterval(timer); clearShortcuts(); bridge?.close(); tray?.destroy(); app.quit();
+      quitting = true; clearInterval(timer); updates?.stop(); clearShortcuts(); bridge?.close(); tray?.destroy(); app.quit();
     } catch(error) { openWindow(); dialog.showErrorBox('Reconnect your Naga to restore it', `${error.message}\nOriginal settings are backed up locally. Reconnect the mouse and try Quit again.`); }
   })();
 });
