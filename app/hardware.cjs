@@ -14,6 +14,7 @@ const { topControls, mouseActions, macroTriggers } = require('./controls.cjs');
 const { dpiCapabilities, dpiWriteStorage, validateDpi, dpiPacket, dpiFromReply, sameDpi } = require('./dpi.cjs');
 const { batteryPacket, batteryFromReply } = require('./battery.cjs');
 const redragon = require('./redragon.cjs');
+const redragonDpi = require('./redragon-dpi.cjs');
 const same = (a, b) => JSON.stringify(functionBlock(a)) === JSON.stringify(functionBlock(b));
 function actionsFor(profile) {
   const p = validateProfile(profile);
@@ -124,7 +125,11 @@ class Hardware {
   }
   async readDpi(device) {
     const limits = dpiCapabilities(device);
-    if (!limits) throw new Error('DPI control is available for supported Naga models on supported USB connections.');
+    if (!limits) throw new Error('DPI control is unavailable for this mouse connection.');
+    if(device.vendorId===0x3554) {
+      const session=await this.openRedragon(device);
+      try {const {record,...value}=await redragonDpi.snapshot(session);return value;} finally {await session.close();}
+    }
     return dpiFromReply(await this.exchange(device.path, dpiPacket()), limits);
   }
   async inspectDpi(id) {
@@ -139,7 +144,8 @@ class Hardware {
   async applyDpi(id, input) {
     return this.serialize(async () => {
       const device = await this.target(id);
-      if (!dpiCapabilities(device)) throw new Error('DPI control is available for supported Naga models on supported USB connections.');
+      if (!dpiCapabilities(device)) throw new Error('DPI control is unavailable for this mouse connection.');
+      if(device.vendorId===0x3554) return this.applyRedragonDpi(device,input);
       const value = validateDpi(input, dpiCapabilities(device));
       const before = await this.readDpi(device);
       const file = this.backupFile(device);
@@ -237,7 +243,7 @@ class Hardware {
   async restore(id, { restoreDpi = false } = {}) {
     return this.serialize(async () => {
       const device = await this.target(id), file = this.backupFile(device);
-      if(device.vendorId===0x3554) return this.applyRedragon(id,null,device);
+      if(device.vendorId===0x3554) return this.applyRedragon(id,null,device,restoreDpi);
       if (!fs.existsSync(file)) throw new Error('No original-settings backup exists for this mouse.');
       const backup = JSON.parse(fs.readFileSync(file, 'utf8'));
       if (backup.version!==1 || backup.deviceId !== device.id || !Array.isArray(backup.entries)) throw new Error('Invalid original-settings backup.');
@@ -246,7 +252,36 @@ class Hardware {
       return { message: `Original mappings${restoreDpi && backup.dpi ? ' and DPI' : ''} restored and verified.` };
     });
   }
-  async applyRedragon(id,profile,target) {
+  async applyRedragonDpi(device,input) {
+    const value=validateDpi(input,dpiCapabilities(device)), session=await this.openRedragon(device);
+    try {
+      const before=await redragonDpi.snapshot(session);
+      if(input.config!==before.config || input.stage!==before.stage) throw new Error('Redragon onboard profile or DPI stage changed. Read DPI again.');
+      const file=this.backupFile(device);
+      let backup=fs.existsSync(file)?JSON.parse(fs.readFileSync(file,'utf8')):null;
+      if(backup && (backup.version!==2 || backup.deviceId!==device.id || backup.model!==redragon.MODEL || !redragon.validSnapshot(backup.original))) throw new Error('Invalid Redragon original-settings backup.');
+      if(backup && backup.original.config!==before.config) throw new Error('Switch the Redragon back to its original onboard profile before applying or restoring.');
+      if(backup?.dpi && !redragonDpi.validBackup(backup.dpi,before.config)) throw new Error('Invalid Redragon DPI backup.');
+      if(!backup) backup={version:2,deviceId:device.id,model:redragon.MODEL,created:new Date().toISOString(),original:await session.snapshot()};
+      if(backup.original.config!==before.config) throw new Error('Redragon onboard profile changed. Read DPI again.');
+      backup.dpi ||= {config:before.config,stages:{}};
+      backup.dpi.stages[before.stage] ||= before.record;
+      atomicWrite(file,backup);
+      await redragonDpi.assertContext(session,before);
+      try {
+        if(!sameDpi(before,value)) {
+          await redragonDpi.transfer(session,{config:before.config,stages:{[before.stage]:redragonDpi.encode(value)}});
+          await redragonDpi.assertContext(session,before);
+        }
+      } catch(error) {
+        try {await redragonDpi.transfer(session,{config:before.config,stages:{[before.stage]:before.record}});}
+        catch {throw new Error(error.message+' Previous DPI could not be restored. Return to the original onboard profile and use Restore original.');}
+        throw new Error(error.message+' Previous DPI restored.');
+      }
+      return {...value,config:before.config,stage:before.stage};
+    } finally {await session.close();}
+  }
+  async applyRedragon(id,profile,target,restoreDpi=false) {
     const device=target || await this.target(id);
     if(device.vendorId!==0x3554 || !driverFor(device)) throw new Error('This profile does not match the selected mouse.');
     const session=await this.openRedragon(device);
@@ -255,18 +290,25 @@ class Hardware {
       let backup=fs.existsSync(file)?JSON.parse(fs.readFileSync(file,'utf8')):null;
       if(backup && (backup.version!==2 || backup.deviceId!==id || backup.model!==redragon.MODEL || !redragon.validSnapshot(backup.original))) throw new Error('Invalid Redragon original-settings backup.');
       if(backup && backup.original.config!==before.config) throw new Error('Switch the Redragon back to its original onboard profile before applying or restoring.');
+      if(restoreDpi && backup?.dpi && !redragonDpi.validBackup(backup.dpi,before.config)) throw new Error('Invalid Redragon DPI backup.');
       if(!profile && !backup) throw new Error('No original-settings backup exists for this mouse.');
       const next=profile?redragon.desired(profile,before):{...backup.original,config:before.config};
       if(!backup) {backup={version:2,deviceId:id,model:redragon.MODEL,created:new Date().toISOString(),original:before};atomicWrite(file,backup);}
-      try { await redragon.transfer(session,before,next); }
+      const previousDpi=restoreDpi && backup.dpi ? await redragonDpi.readStages(session,backup.dpi,false) : null;
+      try {
+        await redragon.transfer(session,before,next);
+        if(previousDpi) await redragonDpi.transfer(session,backup.dpi);
+      }
       catch(error) {
         try {
           // Restore every possibly touched mapping, including a partially written shortcut.
+          if(previousDpi) await redragonDpi.assertContext(session,previousDpi,false);
           await session.write(0x100,before.shortcuts);await session.write(0x60,before.keys);await session.reload(before.config);
+          if(previousDpi) await redragonDpi.transfer(session,previousDpi);
         } catch {throw new Error(error.message+' Original settings are backed up. Reconnect the mouse and use Restore original.');}
         throw new Error(error.message+' Previous mappings restored.');
       }
-      return {message:profile?'16 Redragon side-button mappings verified.':'Original Redragon mappings restored and verified.',backupAvailable:true};
+      return {message:profile?'16 Redragon side-button mappings verified.':`Original Redragon mappings${previousDpi?' and DPI stages':''} restored and verified.`,backupAvailable:true};
     } finally {await session.close();}
   }
 }

@@ -121,7 +121,7 @@ The 16 side buttons use four-byte assignments at `0060..009F` and corresponding
 32-byte shortcut slots at `0100..02FF`. Keyboard combinations use class 5 and the
 same-index shortcut slot. Neuron supports keyboard keys, modifier masks, its
 F13–F24 macro triggers, disabled buttons, and the five standard mouse buttons.
-Top buttons, DPI, lighting, firmware, and onboard macro storage are not written.
+Top buttons, lighting, firmware, and onboard macro storage are not written.
 Battery command 4 returns percentage and charging status. Configuration writes
 are persistent; automatic profile switching only writes changed records.
 
@@ -131,6 +131,49 @@ reloaded and the complete mapping snapshot is checked again. Failed operations
 attempt restoration, including partially written shortcuts. Backups are retained
 for Restore original. Switching the physical onboard profile requires returning
 to the backed-up profile before applying or restoring.
+
+### M990-WL active-stage DPI
+
+The installed vendor configuration identifies PAW3395 with `DPIRange=50,26000,50,0x00`.
+The adapter reads the checked stage selector at `0004` and its four-byte record
+at `000C + stage * 4`. Each axis is encoded as DPI / 50 minus one: low bytes are
+X/Y, and the extension byte holds X bits 8–9 in bits 2–3 and Y bits 8–9 in bits
+6–7. The fourth byte makes the record sum to `55`. Unsupported multiplier bits,
+bad checksums, out-of-range values and nonmultiples of 50 are rejected.
+The earlier local flash capture contains `[52,52,0,237]` at `000C`, consistent
+with 2,650 DPI on both axes. This is evidence for decoding, not physical write validation.
+
+The implementation follows the published [Compx stage format](https://github.com/dongkid/g49-web-control/blob/da76cef7822741421a7612f1db4bbdb18d199dfd/js/protocol.js)
+and [stage write/reload sequence](https://github.com/dongkid/g49-web-control/blob/da76cef7822741421a7612f1db4bbdb18d199dfd/js/mouse-api.js),
+cross-checked against [independent-axis extension fields](https://github.com/E1yWrites/udb/blob/1afdd4581d603a3afaba2a3df4c0e92a3003fab0/src/adapters/compx-dpi.ts),
+with M990-WL identity gating and the installed model's limits. Writes are limited
+to one complete validated four-byte stage record, followed by reload of the
+current onboard profile and exact readback. No stage selector, count, colors,
+lighting, or polling-rate writes are enabled. Read and Apply retain profile/stage
+context to reject stale UI readings after a hardware button changes either.
+
+Version-2 Redragon backups retain the original mappings and additionally save
+the first original raw record of each changed DPI stage in `dpi.stages`, scoped
+to the original onboard profile. Failures restore the pre-operation record;
+explicit Restore original restores all backed-up stages without selecting a
+different stage. Button-profile operations and automatic restoration leave DPI
+alone. Existing mapping-only backups remain compatible. Simulated transport
+tests cover both USB identities, independent axes, boundaries, stale context,
+bad records, lost acknowledgements, rollback, and recovery from corrupted stages.
+The Electron smoke test covers range/step validation and unknown readings.
+A read-only live probe on 2026-11-17 confirmed profile 1, zero-based stage 0,
+and `[52,52,0,237]`: 2,650 DPI on both axes. The evidence is in local
+`artifacts/redragon-dpi/live-read.json`. After waking the mouse, a wireless
+roundtrip changed X to 2,700 while retaining Y at 2,650, verified the new raw
+record after reload, then restored both axes to 2,650 and verified the exact
+original record. The complete `0000..005F` settings area and mapping snapshot
+matched their originals afterward; during the change only the active stage's
+four bytes differed. Evidence is in `artifacts/redragon-dpi/roundtrip.json`.
+This verifies device write/readback/restoration, not measured cursor travel,
+power-cycle persistence, the full DPI range, or wired transport.
+`node scripts/redragon-dpi-roundtrip.cjs` tests a temporary 50-DPI X-axis change
+with a durable snapshot, exact restoration in `finally`, and checks that other
+settings and mappings stay unchanged. Keep the mouse awake throughout the test.
 
 Local hardware validation on 2026-11-17 confirmed CID 23 / MID 48, battery 100%,
 the settings layout, and a temporary side-button-1 F24 mapping. The user pressed

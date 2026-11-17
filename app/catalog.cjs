@@ -11,6 +11,7 @@ const catalog = devices.map(({productId,name,bluetooth,batteryExpected}) => ({pr
   driverValidation:bluetooth?'unavailable':mappingDrivers.get(productId)?.validation,
   topLabels:mappingDrivers.get(productId)?.topLabels || {} }));
 catalog.push({productId:0xf55d, vendorId:0x3554, brand:'Redragon', name:'M990-WL', buttons:16,
+  dpi:dpiCapabilities({vendorId:0x3554,productId:0xf55d,modelId:0xf55d,modelVerified:true}),
   driver:'redragon-m990-wl-experimental', mappingPlates:[16], physicalPlates:[16], controls:[], topControls:[], topLabels:{},
   sideLabels:{16:Array.from({length:16},(_,i)=>String(i+1))}, driverValidation:'locally-tested'});
 module.exports = { catalog };

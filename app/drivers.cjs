@@ -24,7 +24,7 @@ function sideSources(driver, plate) {
 }
 function mappingCapabilities(device) {
   const driver = driverFor(device);
-  if (driver?.id === 'redragon-m990-wl-experimental') return {driver:driver.id, mappingPlates:[16], controls:[], driverValidation:driver.validation, support:'experimental', supportMessage:'Experimental M990-WL side-button remapping. Originals are backed up and writes are verified. Close the Redragon configuration software before applying. Top controls and DPI configuration are not supported yet.'};
+  if (driver?.id === 'redragon-m990-wl-experimental') return {driver:driver.id, mappingPlates:[16], controls:[], driverValidation:driver.validation, support:'experimental', supportMessage:'Experimental M990-WL side-button remapping and active-stage DPI. Originals are backed up and writes are verified. Close the Redragon configuration software before applying. Top controls are not supported yet.'};
   return driver ? {driver:driver.id, mappingPlates:driver.plates, driverValidation:driver.validation,
     controls:controlsFor(device.modelId??device.productId),
     support:'experimental', supportMessage:driver.validation==='best-guess'

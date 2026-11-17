@@ -39,11 +39,11 @@ The system tray icon displays the battery percentage and a small charge bar for 
 
 ## DPI
 
-Open **DPI** to read the selected mouse, then use the sliders, exact inputs, or quick picks and click **Apply DPI**. All supported models start at 100 DPI: Trinity reaches 16,000; Naga X 18,000; Naga Pro and Left-Handed Edition 2020 20,000; V2 Pro and V2 HyperSpeed 30,000; V3 Pro 50,000. Use wired USB or the model's receiver. Mouse Dock Pro supports identified V2/V3 Pro mice only. Unlink the axes for independent horizontal and vertical sensitivity. **Read DPI** refreshes the reading without changing the mouse. Apply stays disabled until a read succeeds.
+Open **DPI** to read the selected mouse, then use the sliders, exact inputs, or quick picks and click **Apply DPI**. Supported Naga models start at 100 DPI: Trinity reaches 16,000; Naga X 18,000; Naga Pro and Left-Handed Edition 2020 20,000; V2 Pro and V2 HyperSpeed 30,000; V3 Pro 50,000. Redragon M990-WL supports 50–26,000 DPI in steps of 50, saved to its active onboard DPI stage. Use wired USB or the model's receiver. Mouse Dock Pro supports identified V2/V3 Pro mice only. Unlink the axes for independent horizontal and vertical sensitivity. **Read DPI** refreshes the reading without changing the mouse. Apply stays disabled until a read succeeds.
 
 Sensitivity is mouse-wide. Saving, applying, importing, or switching button profiles does not change it. Neuron reads the current mouse sensitivity when opening DPI; it does not store DPI in profiles. Leaving a game or quitting Neuron restores button mappings without changing sensitivity. **Restore original** on Devices explicitly restores both mappings and the first backed-up DPI.
 
-This adjusts sensitivity without editing the DPI-stage table; the mouse's DPI buttons still cycle its existing onboard stages. Pro, X, Left-Handed 2020, and V2 HyperSpeed use their documented stored sensitivity write, followed by a current-DPI readback. Neuron does not guarantee persistence after unplugging the mouse. Expanded support is experimental and tested with simulated transports; physical validation on these mice and the dock remains pending. Bluetooth and other mouse models do not have DPI configuration support yet.
+For Naga models, this adjusts sensitivity without editing the DPI-stage table; the mouse's DPI buttons still cycle its existing onboard stages. Pro, X, Left-Handed 2020, and V2 HyperSpeed use their documented stored sensitivity write, followed by a current-DPI readback. Neuron does not guarantee persistence after unplugging the mouse. For M990-WL, only the active stage is edited; other stages, colors, and stage selection stay unchanged. Read DPI again after using the mouse's DPI or onboard-profile buttons. Restore original restores the first backed-up value of each edited stage. Expanded support is experimental and tested with simulated transports. M990-WL wireless DPI write/readback and exact restoration were physically verified; other expanded DPI transports remain pending physical validation. Bluetooth and other mouse models do not have DPI configuration support yet.
 
 `npm run smoke:dpi` checks the Electron page, validation, profile independence, reload, disconnection, and compact layout with isolated test profiles and a simulated DPI device. It does not write to physical hardware.
 
@@ -129,11 +129,13 @@ This project is independent of Razer and is not affiliated with or endorsed by R
 The M990-WL driver verifies the mouse behind its shared Compx receiver before
 enabling experimental remapping for its 16 side buttons. Select **M990-WL** on
 Devices to create a profile. Keyboard combinations, Neuron macro triggers,
-standard mouse buttons, disabled assignments, and battery readings are supported.
+standard mouse buttons, disabled assignments, battery readings, and active-stage
+DPI adjustments (50–26,000 in steps of 50) are supported.
 Keep the mouse awake and close Redragon's configuration software when applying.
 Original mappings and shortcut data are backed up and every write is verified.
 
 The wireless side-button-1 press/release and exact restoration were physically
 tested. Other positions and assignment types remain experimental. Top-button
-remapping, DPI configuration, and Bluetooth configuration are not yet supported;
-the wired transport has not been physically tested. This support is included in v0.1.6. See [hardware notes](docs/hardware.md).
+remapping and Bluetooth configuration are not yet supported. Wireless DPI writes,
+readback, and exact restoration were physically verified with a temporary 50-DPI
+X-axis change. The wired transport remains untested. See [hardware notes](docs/hardware.md).

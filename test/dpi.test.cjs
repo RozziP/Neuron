@@ -158,6 +158,6 @@ test('dock loses DPI capability when its identified mouse changes',async t=>{
   const f=proFixture(t,0x00a4),[device]=await f.h.devices();
   await f.h.inspectDpi(device.id);f.pair(0x00ab);await f.h.devices();
   const before=f.requests.length;
-  await assert.rejects(f.h.applyDpi(device.id,{x:800,y:800}),/supported USB/);
+  await assert.rejects(f.h.applyDpi(device.id,{x:800,y:800}),/unavailable/);
   assert.equal(f.requests.length,before);assert.equal(f.writes.length,0);
 });
