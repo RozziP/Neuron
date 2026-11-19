@@ -1,141 +1,135 @@
 # Neuron
 
-A Windows desktop control center for mouse button rebinding, macros, and game profiles. The current build includes **123 experimental Razer USB/receiver identities**, with model-specific button layouts across the upstream mouse catalog, plus eight Bluetooth identities for offline profiles. Many adapters are explicitly best guesses; only Trinity has been physically tested in Neuron. See [Razer driver coverage and limitations](docs/razer-drivers.md) and the Redragon development notes below.
+Neuron is a Windows app for customizing your mouse buttons, creating keyboard macros, and switching bindings automatically for each game. Profiles stay on your computer, with separate settings and macro libraries for each mouse.
 
-## Run
+**Mouse support is experimental.** Naga Trinity has the most direct hardware testing; Redragon M990-WL has limited wireless testing. Many other Razer models are available, but their drivers still need physical validation. Check [mouse compatibility](#mouse-compatibility) before applying settings.
 
-Download the Windows x64 installer from [the latest release](https://github.com/RozziP/Neuron/releases/latest), run the downloaded Neuron Setup executable, and launch Neuron from the Start menu. The installer includes the app runtime and native helper; Node.js and administrator access are not required. This release is unsigned, so Windows may display an unknown-publisher warning.
+## Install
 
-Open `dist/Neuron-win32-x64/Neuron.exe` for the local portable build. Keep the executable with the rest of its folder. No Node installation or administrator access is needed for that build.
+1. Download the Windows x64 installer from [the latest release](https://github.com/RozziP/Neuron/releases/latest).
+2. Run the downloaded **Neuron Setup** executable.
+3. Launch **Neuron** from the Start menu.
 
-The sidebar shows the running app version and checks GitHub for a newer stable release at startup and every six hours. **Check for updates** checks manually. In the installed Windows app, **Update to…** asks whether to save or discard pending profile and macro edits (or cancel the update), then downloads the installer with progress, verifies its size and SHA-256 digest against GitHub release metadata, restores active mouse mappings, and installs and restarts automatically. No browser or installer wizard is needed. Invalid edits, failed downloads, or failed mouse restoration keep Neuron open with an error so you can retry. Updating keeps your saved profiles and macros and restores the Neuron Start menu shortcut, even if it was deleted. The installer runs only after Neuron and its mouse helper exit. If installation fails, the helper attempts to reopen Neuron and the next launch shows the failure. Update checks do not install anything until you click **Update to…**.
+You do not need Node.js or administrator access. The installer is currently unsigned, so Windows may show an unknown-publisher warning. If Neuron is already installed, run the new installer directly; your saved profiles and macros are retained.
 
-Automatic installation starts with v0.1.7. Older versions need one manual installer update to gain this feature. Development and portable builds do not install updates automatically; use the Windows installer to switch to an installed copy. Downloads require a matching x64 installer and GitHub SHA-256 asset digest. The installer is currently unsigned; digest verification checks download integrity, not a publisher signature.
+## Set up your first button
 
-For an existing installer-based installation, run the new installer directly; no manual uninstall is needed. It detects the existing installation folder and replaces the previous version while retaining profiles, shared macros, and original-mouse backups in `%APPDATA%/Neuron`.
+1. Connect your mouse using USB or its supported receiver, and close Synapse or Redragon's configuration software so it does not compete with Neuron.
+2. Select your mouse under **Your devices** in the sidebar. If a dock or receiver asks which mouse is paired, choose the correct model. Select the attached side plate where applicable. To prepare profiles without a connected mouse, use **Devices → Select your mouse**.
+3. Open **Button mapping** and click the side or top control you want to change.
+4. Choose **Click here, then press a key** and press your shortcut. To assign a modifier such as Ctrl alone, press and release it. Combinations such as Ctrl+Shift also work. Escape cancels capture; use the virtual keyboard to assign Escape.
+5. Click **Save & apply to mouse**. Neuron saves the profile and writes and checks the mouse's bindings.
+6. Open **Test on virtual keyboard**, keep Neuron focused, and press the mapped mouse button to check the result. Clicking a virtual key assigns it to the selected button.
 
-For the development checkout, double-click `Start Neuron.cmd` after installing dependencies, or use:
+Keep **Left click** assigned somewhere. Controls set to **Original** retain their original mapping; choose Original again to undo a rebind. **Save profile** saves your edits locally without applying them to the mouse. DPI is adjusted separately, and lighting is unchanged.
 
-```powershell
-npm install
-npm start
-```
+## Profiles for your desktop and games
 
-Development requires Node.js 22.12+ and Windows x64 with .NET Framework 4.x. The native helper is compiled using the Windows-provided C# compiler; no Visual Studio or custom driver is needed.
+Use **Profiles** to create, duplicate, rename, import, or export standard profiles. Exported profiles are `.json` files; imports must match the selected mouse and side plate.
 
-## Use
+To set up a game:
 
-1. Close Synapse so it does not compete with Neuron for settings.
-2. Select a mouse under **Your devices** in the sidebar. Button mapping, Profiles, Macros, DPI, and Devices all refer to that mouse. Each mouse has its own profiles and macro library, including two mice of the same model. To add an offline model, open **Devices → Select your mouse**. For an unidentified receiver or dock, select it in the sidebar and answer **Which mouse is paired with this dock/receiver?**. Then select the attached side plate. Trinity 12-button is the hardware-tested starting point; 7-button support is experimental and not physically tested.
-3. Click a side or top mouse control, then **Click here, then press a key** to capture a shortcut. To use a modifier by itself, press and release it during capture. Modifier-only combinations such as `Ctrl+Shift` are also supported. Escape cancels capture; you can assign Escape by clicking it on the virtual keyboard .
-4. Click **Save & apply to mouse** at the top to save the profile, write its button mappings, and verify readback. Save profile in the sticky header saves locally without changing your mouse. Top controls start as Original and remain unchanged until you rebind them. Returning to Original restores the saved mapping. Keep Left click assigned somewhere. Sensitivity is controlled separately in the DPI tab. Lighting is unchanged.
-5. **Test on virtual keyboard** opens a keyboard that highlights keys while held and clears them on release. Press your physical keyboard or mapped mouse buttons with Neuron focused. Clicking a virtual key assigns it to the currently selected mouse button. The virtual keyboard replaces the old bindings overview.
-5. Macros has a library shared by the selected mouse’s profiles and a Save macros action, without a profile selector. Other mice have separate libraries. To create a macro, add key taps and millisecond delays or record keys while Neuron has focus. Recording appends to the sequence and stops on Escape or loss of focus. Choose **Do once**, **Do X times**, **Toggle (repeat indefinitely)**, or **Continuous while held**. Toggle starts on a press and stops on the next press of the same bound button; Continuous while held stops when you release it, including during a delay. Save macros, then use **Button mapping → Macro** to open the list of saved macros and choose one. Cancel leaves the current binding unchanged; an empty library stays in the picker. Each sequence supports up to 100 steps. Existing repeat counts are preserved. Other macro triggers are ignored while playback is running.
-6. `Ctrl+Alt+Escape`, the footer button, and the tray menu stop a running macro. Closing the window keeps Neuron in the tray. **Quit** in the tray restores the original hardware bindings, stops background helpers, and fully exits Neuron.
+1. Open **Button mapping → Game profiles → Your games**.
+2. Select a detected game, or use **Add game** to locate one manually.
+3. Start with fresh bindings or a saved standard profile, then click **Create game profile**. You can also use **Import profile from file**.
+4. Customize the bindings and save your changes.
 
-Macro buttons use F13–F24 on the mouse, with corresponding global shortcuts reserved while that profile is applied. Other keyboards emitting those same F-keys can also trigger the macro. Playback uses Windows SendInput and requires Neuron to stay running; macros are not stored onboard. Key steps are taps, not held-key sequences. Physical key positions follow the USB/US keyboard map; layout-dependent symbols may differ on other keyboard layouts. Windows does not allow a normal-privilege app to inject input into an elevated app.
+**Game switching starts automatically as soon as a game profile exists.** Keep Neuron running, including in the tray. When a game becomes the foreground app, Neuron applies its profile after a short delay. Switching to another app returns to your desktop profile, or to saved onboard bindings or original mappings if no compatible desktop profile exists. WoW Retail and Forever are treated as separate games even though both use `Wow.exe`.
 
-The system tray icon displays the battery percentage and a small charge bar for Naga Epic, Epic Chroma, Pro, V2 Pro, V3 Pro, and V2 HyperSpeed over supported USB/receiver connections, including V2/V3 Pro through a selected Dock Pro adapter. It refreshes every 30 seconds, turns orange at 20% or below, and blue while charging. Hover or right-click for the device name and battery/charging status. With multiple wireless mice, the icon prefers the active mouse, then the first detected wireless mouse; the menu lists every device. Wired-only models such as Trinity show “Wired · no battery.” Failed reads show “Battery unavailable” instead of an old percentage. Battery reads follow OpenRazer's protocol and still need physical verification on wireless models; remapping availability is determined separately by the model’s adapter.
+Each mouse has its own profiles and macros, including two mice of the same model. All pages and automatic game switching use the mouse selected in the sidebar. Switching mice restores the previous mouse's active bindings and prompts before discarding unsaved edits. Wired and wireless connections can appear as separate mouse workspaces.
 
-## DPI
+## Create and use macros
 
-Open **DPI** to read the selected mouse, then use the sliders, exact inputs, or quick picks and click **Apply DPI**. Supported Naga models start at 100 DPI: Trinity reaches 16,000; Naga X 18,000; Naga Pro and Left-Handed Edition 2020 20,000; V2 Pro and V2 HyperSpeed 30,000; V3 Pro 50,000. Redragon M990-WL supports 50–26,000 DPI in steps of 50, saved to its active onboard DPI stage. Use wired USB or the model's receiver. Mouse Dock Pro supports identified V2/V3 Pro mice only. Unlink the axes for independent horizontal and vertical sensitivity. **Read DPI** refreshes the reading without changing the mouse. Apply stays disabled until a read succeeds.
+1. Open **Macros** and choose **New macro**.
+2. Add key presses and delays, or choose **Record keys** while Neuron has focus. Recording appends to the sequence and stops on Escape or when the window loses focus.
+3. Choose how it plays:
+   - **Do once** plays the sequence once.
+   - **Do X times** repeats it a set number of times.
+   - **Toggle (repeat indefinitely)** starts on one press and stops on the next press of the same button.
+   - **Continuous while held** stops when you release the button, including during a delay.
+4. Click **Save macros**, then open **Button mapping → Macro** and choose the saved macro for a mouse button.
+5. Click **Save & apply to mouse**.
 
-Sensitivity is mouse-wide. Saving, applying, importing, or switching button profiles does not change it. Neuron reads the current mouse sensitivity when opening DPI; it does not store DPI in profiles. Leaving a game or quitting Neuron restores button mappings without changing sensitivity. **Restore original** on Devices explicitly restores both mappings and the first backed-up DPI.
+**Stop playback at any time with Ctrl+Alt+Escape**, the footer's **Stop macro** button, or the tray menu.
 
-For Naga models, this adjusts sensitivity without editing the DPI-stage table; the mouse's DPI buttons still cycle its existing onboard stages. Pro, X, Left-Handed 2020, and V2 HyperSpeed use their documented stored sensitivity write, followed by a current-DPI readback. Neuron does not guarantee persistence after unplugging the mouse. For M990-WL, only the active stage is edited; other stages, colors, and stage selection stay unchanged. Read DPI again after using the mouse's DPI or onboard-profile buttons. Restore original restores the first backed-up value of each edited stage. Expanded support is experimental and tested with simulated transports. M990-WL wireless DPI write/readback and exact restoration were physically verified; other expanded DPI transports remain pending physical validation. Bluetooth and other mouse models do not have DPI configuration support yet.
+Macros are shared across the selected mouse's profiles. Each sequence supports up to 100 steps; key steps are taps, not held-key sequences. Neuron must stay running because macros are not stored on the mouse. Only one macro plays at a time.
 
-`npm run smoke:dpi` checks the Electron page, validation, profile independence, reload, disconnection, and compact layout with isolated test profiles and a simulated DPI device. It does not write to physical hardware.
+Macro bindings reserve F13–F24 while applied, so those keys on another keyboard can also trigger playback. Neuron cannot send input into an app running at a higher privilege level. Keys follow the USB/US keyboard map, so some symbols may differ on other layouts.
 
-## Game profiles
+## Adjust sensitivity (DPI)
 
-Open **Button mapping → Game profiles → Your games**. Neuron detects installed games from Steam libraries, Battle.net / WoW clients, Epic manifests, GOG, Riot, Windows install records, and common game folders across local drives. Use **Add game** for custom locations. Select a game, choose fresh bindings or a saved standard profile from this mouse, then click **Create game profile**. **Import profile from file** copies a Neuron JSON profile into that game. Each mouse gets independent game profiles and button bindings. Macros can be assigned across profiles belonging to the same mouse. WoW Retail and Forever are separate entries matched by full executable path, even though both use `Wow.exe`.
+Open **DPI**, wait for the current sensitivity to load, then use the sliders, exact inputs, or quick picks and click **Apply DPI**. Unlink the axes to set horizontal and vertical sensitivity separately. **Read DPI** refreshes the value without changing it; applying stays disabled until a read succeeds.
 
-Automatic switching is always enabled as soon as a game profile exists, including after restarting Neuron; there is no toggle and no initial manual apply requirement. Neuron checks the foreground app once a second, waits for it to settle, and applies the matching profile. It returns to the desktop profile for unmatched apps and ignores its own window. Switching performs verified hardware writes and is not instantaneous. Disconnected mice resume on reconnect. Failed automatic writes display an error and retry after a short delay. If no compatible desktop profile exists, Neuron restores the original mouse mappings when leaving the game.
-
-Import/export uses versioned `.json` files. New imported profiles get new IDs. Only one profile per game/model/side-plate combination is allowed. Imported templates must match the selected mouse and plate. Automatic discovery is best effort; an unusual executable may need selecting or locating manually.
-
-## Hardware status
-
-| Capability | Status |
+| Mouse | DPI range |
 | --- | --- |
-| Razer mouse identities | 131 connection identities; 123 USB/receiver driver candidates and eight Bluetooth profiles |
-| Other Razer mouse families | Best-guess adapters and model-specific side/body controls; physical validation pending |
-| Naga Pro, V2 Pro, V3 Pro (wired / receiver) | Experimental remapping for 2-, 6-, and 12-button plates; community protocol evidence, Neuron hardware validation pending |
-| Naga V2 HyperSpeed receiver | Experimental 12-button remapping; community protocol evidence, Neuron hardware validation pending |
-| V2/V3 Pro through Mouse Dock Pro `1532:00A4` | Experimental remapping and battery reads; identifies the paired model where possible, otherwise asks the user |
-| Trinity: read 12 side-button mappings | Verified on connected `1532:0067` hardware |
-| Trinity: change a mapping and restore it | Verified with a temporary F24 mapping, then exact restoration of both original slots |
-| Trinity: Ctrl, Shift, Alt, Ctrl+Shift, Ctrl+1 mappings | Hardware write/readback verified; physical hold/release acceptance testing remains |
-| Trinity: disable, 7-button plate | Implemented, needs physical acceptance testing |
-| Windows macro playback | Verified into the app's focused test field |
-| Profile persistence and UI flows | Automated tests |
-| Automatic game switching | Implemented; needs acceptance testing in real games |
-| Older Naga models | Best-guess remapping with model-specific layouts; physical validation pending |
-| Bluetooth / HyperPolling shared dongle | Bluetooth profile editing only; configuration transports not implemented |
-| Compx `3554:F55D` 2.4 GHz receiver | Recognition only; mouse model unknown, configuration and battery reads unavailable |
-| Trinity top controls (clicks, wheel, tilt, DPI buttons) | Editable; all mappings read from hardware, DPI-up rebind/readback/restore verified; physical press testing remains |
-| 2-button plates | Included on Trinity and Pro-family layouts; physical validation pending |
-| Hypershift, onboard macros | Planned |
-| Trinity current DPI | Mouse-wide X/Y sensitivity with verified readback and rollback; hardware reads verified, physical write acceptance pending |
-| DPI stages, polling rate, lighting | Planned |
+| Naga Trinity | 100–16,000 |
+| Naga X | 100–18,000 |
+| Naga Pro / Left-Handed Edition 2020 | 100–20,000 |
+| Naga V2 Pro / V2 HyperSpeed | 100–30,000 |
+| Naga V3 Pro | 100–50,000 |
+| Redragon M990-WL | 50–26,000, in steps of 50 |
 
-An experiment on one Trinity does not verify every firmware revision. See [hardware notes](docs/hardware.md) for the transport and observed behavior.
+Use USB or a supported receiver. Mouse Dock Pro supports identified V2/V3 Pro mice; Bluetooth DPI configuration is unavailable.
 
-Compx `3554:F55D` receivers appear in **Your devices** and the tray. This identity is shared by several mouse models, so it is not a selectable button-profile model. Receiver detection does not establish that its paired mouse is awake or connected. Button remapping, DPI, macro assignments, and battery reads require a verified model-specific driver; the hardware report alone cannot supply that protocol. Automatic unsupported-mouse reporting remains enabled for this receiver.
+DPI is mouse-wide and is not saved in button profiles. Switching profiles, leaving a game, or quitting Neuron does not change it. On Naga models, the mouse's DPI buttons still cycle its existing onboard stages; persistence after unplugging is not guaranteed. M990-WL edits only the active onboard stage. Use **Read DPI** again after pressing its DPI or onboard-profile buttons.
 
-Known USB IDs automatically select their remapping adapter. Dock Pro (`1532:00A4`) is a shared transport: Neuron tries a read-only paired-mouse query and asks for the model if the answer is missing or ambiguous. Choosing V2 Pro or V3 Pro enables its experimental dock adapter. Choosing an incompatible mouse cannot enable a driver on that transport. Manual connection choices and the preferred profile model are stored locally in `device-models.json` and can be changed or cleared on Devices. Restore the active mouse before changing its connection choice.
+## Keep bindings after quitting (Naga Trinity)
 
-Modern Pro-family remaps use the live profile and may reset after power cycling or changing the onboard profile. V2 HyperSpeed and Viper Ultimate also update a stored profile; both stored and live originals are backed up and restored. Every new driver retains the existing preflight, backup, readback and rollback workflow. Fixed or unreliable controls remain visible without accepting remaps. See [Razer driver notes](docs/razer-drivers.md) for model layouts, source evidence and limitations.
+In **Button mapping**, choose your Trinity profile and click **Save onboard**. This saves and applies its bindings and remembers them as the set to restore when Neuron quits, installs an update, or switches to another mouse.
 
-## Data and recovery
+Key/modifier, mouse-button, Original, and disabled assignments are supported. Replace any assigned macros first; unused macros in the library are fine. DPI is unchanged.
 
-Normal app data lives under `%APPDATA%/Neuron` (Electron's `userData` directory). `mouse-workspaces.json` remembers the selected mouse and device ownership; each mouse has its own `mice/<workspace-id>/profiles.json` containing its profiles and macro library. The `games.json` discovery cache and original-mapping `backups` folder remain app-wide. Existing profiles migrate by model into separate workspaces; each receives a copy of the old shared macro library so bindings survive. Later edits are independent. The legacy root profile file is retained, and version-1 files also receive a migration backup. Exported profiles retain the portable version 1 format. Writes are atomic. Invalid profile files are preserved as recovery copies. Hardware originals are saved **before** any configuration writes and are not overwritten by later profile applications.
+Normal profile edits, **Save & apply to mouse**, and game switching do not replace this saved set. Click **Save onboard** again to replace it, or **Devices → Restore original** to clear it and restore the original settings. This does not manage multiple hardware profile slots, and persistence after unplugging or power cycling remains unverified. Automatic game switching still needs Neuron running.
 
-The sidebar selection persists across restarts and remains selected when disconnected. Neuron does not substitute another connected mouse of the same model. Device ownership uses the detected serial or connection identity: wired and wireless connections, or a changed USB path on a mouse without a serial, can appear as separate workspaces. Switching mice prompts before discarding unsaved edits and restores any active mappings on the previous mouse. Automatic game switching uses only the selected mouse’s profiles.
+## Tray and updates
 
-Apply failures attempt to restore the immediately preceding mappings. Devices → Restore original restores the pre-Neuron snapshot. If the process is killed, the PC shuts down, or USB is unplugged mid-write, automatic restoration cannot be guaranteed. Reconnect and use Restore original. Keep backups when resetting app data. A matching game profile is automatically applied when its game is in front, including after startup.
+Closing the window keeps Neuron running in the system tray for macros and game switching. To fully exit, right-click the tray icon and choose **Quit**. Neuron returns the mouse to saved onboard bindings where available, or its original mappings.
+
+Supported wireless mice show battery and charging status in the tray. Orange means 20% or less; blue means charging. Hover or right-click for details. Battery support varies by model and connection, and most wireless Razer readings still need physical verification.
+
+Neuron checks for updates at startup and every six hours. You can also select **Check for updates** in the sidebar:
+
+1. Click **Download v…** to download in the background. You can keep editing or cancel the download.
+2. When ready, click **Install and restart**. Finishing a download never starts installation by itself.
+3. Save or discard pending edits when prompted, or cancel installation.
+
+Neuron verifies the download, restores the mouse's saved onboard or original bindings, and restarts after installation. Saved profiles and macros are retained. Versions older than v0.1.7, and portable or development builds, need a manual installer update.
+
+## Mouse compatibility
+
+Check **Devices** for your model and connection's status. Detection alone does not mean a mouse supports configuration.
+
+| Mouse or connection | What to expect |
+| --- | --- |
+| Naga Trinity | Most directly tested, especially the 12-button plate. Other plates and some assignments still need physical testing. |
+| Naga Pro, V2 Pro, V3 Pro, V2 HyperSpeed, and other Razer models | Experimental or best-guess drivers; model-specific controls and connection support vary. |
+| Mouse Dock Pro with V2/V3 Pro | Experimental remapping, DPI, and battery reads. Select the paired model if prompted. |
+| Redragon M990-WL | Experimental 16-side-button mapping, macros, battery, and active-stage DPI. Wireless side-button 1 and DPI changes/restoration were physically tested; wired use remains untested. Top-button remapping is unavailable. |
+| Bluetooth | Offline profile editing only; mouse configuration is unavailable. |
+| Unidentified Compx receiver | Recognition only until a supported mouse is verified. Choosing a name alone does not enable configuration. |
+
+Keep wireless mice awake when applying settings. Some bindings may reset after power cycling or changing the mouse's onboard profile. Hypershift, onboard macros, polling-rate controls, and lighting configuration are not available.
+
+See [Razer driver coverage](docs/razer-drivers.md) and [hardware notes](docs/hardware.md) for detailed model support and testing limits.
+
+## Troubleshooting and recovery
+
+- **Mouse missing or settings unavailable:** open **Devices**, click **Refresh**, check the connection and selected model/plate, and close other mouse configuration apps. Bluetooth and unsupported receivers cannot apply settings.
+- **Bindings behave unexpectedly:** open **Devices → Restore original**. This restores the settings backed up before Neuron changed them, including backed-up DPI, and clears saved onboard bindings. A game profile can still apply while its game is in front.
+- **Neuron was force-closed or the mouse disconnected during a write:** reconnect and use **Restore original**. Automatic restoration cannot be guaranteed after an interruption.
+- **Macro does nothing:** confirm it was saved, assigned, and applied, keep Neuron running, and check that the target app is not running at a higher privilege level.
+- **Update fails:** Neuron shows an error so you can retry. You can also download and run the latest installer without uninstalling first.
+
+Settings and original-mouse backups live in `%APPDATA%/Neuron`. Back up that folder before resetting app data; deleting it can remove the original settings needed for recovery. Use profile export for portable copies of individual profiles.
 
 ## Automatic hardware reports
 
-Neuron automatically sends unsupported-mouse identification evidence to its reporting service, which creates a public issue in [RozziP/Neuron](https://github.com/RozziP/Neuron) only when no matching open or closed issue exists. No login, prompt, or browser interaction is required. Reports include USB IDs and labels, HID interface/report capabilities, Windows device/driver descriptions, matching mouse-software configuration evidence where supported, and app/OS versions. The initial software adapter recognizes matching Redragon/Compx configurations. Installed software is reported as a candidate, not confirmed hardware identity. Serial numbers, device paths, profiles, games, input events, full configuration files and unrelated installed software are excluded.
+Neuron automatically reports unsupported-mouse identification details to a service that creates or updates a public issue in [RozziP/Neuron](https://github.com/RozziP/Neuron/issues). No login or confirmation is required. Reports include USB IDs and labels, device capabilities, Windows driver descriptions, matching mouse-software evidence where supported, and app/OS versions.
 
-**Devices → mouse identification** asks whether a suggested model is correct and lets you enter a different brand/model. Confirmations are saved and included in reports. If both the app and service have a working driver for that exact device connection, the associated automatic hardware issue is closed. Unsupported receivers and manually maintained issues stay open; a guessed or confirmed name alone never enables a driver.
+Reports exclude serial numbers, device paths, profiles, games, input events, full configuration files, and unrelated installed software. **Devices → mouse identification** lets you confirm or correct a suggested model; that answer is included in reports. Failed submissions retry automatically. See [hardware reporting details](docs/hardware-reporting.md).
 
-The reporting service is live on Cloudflare Workers Free. Reports are also saved locally, successful submissions are remembered, and failed attempts retry automatically. Version 2 sends newly discovered evidence to an existing issue once, including for previously reported receivers; identical evidence does not create repeated comments. Mouse-capable interfaces on receivers or composite devices may need maintainer triage. See [deployment, token renewal, and duplicate handling](docs/hardware-reporting.md).
+## Development and credits
 
-## Check and build
+For source setup, builds, and tests, see the [development guide](docs/development.md).
 
-```powershell
-npm test            # protocol validation, profiles, rollback and macro cancellation
-npm run smoke:workspaces # sidebar selection, per-mouse isolation, reconnects and DPI targeting
-npm run smoke      # real Electron UI, native input into its own window, HID reads
-node_modules/electron/dist/electron.exe scripts/razer-layout-smoke.cjs # offline Razer layout checks
-npm run pack       # local Windows x64 folder, not a published release
-npm run release:build # Windows x64 installer in dist/release
-node scripts/probe.cjs # read-only Trinity diagnostics
-```
-
-The smoke test skips its native key-injection check if another application has foreground focus; it never types into that other app. The result JSON records whether the native check ran. Test profiles and screenshots use an isolated artifacts directory, separate from your normal settings.
-
-`scripts/hardware-roundtrip.cjs` is an explicit hardware test: it briefly changes Trinity side button 1 to F24 and restores both original slots in `finally`, with a recovery snapshot in `artifacts`. Do not run it while gaming. It is intentionally excluded from normal tests.
-
-The renderer is sandboxed, has no Node access or network permission, and talks through a fixed preload API. The main process validates IPC origins and profile payloads. The native helper handles Razer feature reports, read-only HID descriptor summaries, foreground process lookup, key state, and key taps. Hardware operations are serialized; single-instance locking prevents competing Neuron sessions.
-
-This project is independent of Razer and is not affiliated with or endorsed by Razer. Protocol references and third-party dependencies are recorded in [THIRD_PARTY.md](THIRD_PARTY.md).
-
-### Redragon M990-WL (experimental)
-
-The M990-WL driver verifies the mouse behind its shared Compx receiver before
-enabling experimental remapping for its 16 side buttons. Select **M990-WL** on
-Devices to create a profile. Keyboard combinations, Neuron macro triggers,
-standard mouse buttons, disabled assignments, battery readings, and active-stage
-DPI adjustments (50–26,000 in steps of 50) are supported.
-Keep the mouse awake and close Redragon's configuration software when applying.
-Original mappings and shortcut data are backed up and every write is verified.
-
-The wireless side-button-1 press/release and exact restoration were physically
-tested. Other positions and assignment types remain experimental. Top-button
-remapping and Bluetooth configuration are not yet supported. Wireless DPI writes,
-readback, and exact restoration were physically verified with a temporary 50-DPI
-X-axis change. The wired transport remains untested. See [hardware notes](docs/hardware.md).
+Neuron is independent of Razer and is not affiliated with or endorsed by Razer. Protocol references and third-party dependencies are listed in [THIRD_PARTY.md](THIRD_PARTY.md).
