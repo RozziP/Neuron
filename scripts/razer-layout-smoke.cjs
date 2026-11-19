@@ -19,7 +19,7 @@ ipcMain.handle('updates:get',()=>({ok:true,result:{currentVersion:'test',status:
 const failures=[];
 app.whenReady().then(async()=>{
   const win=new BrowserWindow({width:1380,height:900,show:false,webPreferences:{preload:path.resolve(__dirname,'../app/preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true}});
-  win.webContents.on('console-message',e=>{if(e.level==='error')failures.push(e.message);});
+  win.webContents.on('console-message',e=>{if(e.level==='error')failures.push(`${e.message} (${e.sourceId}:${e.lineNumber})`);});
   const js=code=>win.webContents.executeJavaScript(code);
   try {
     await win.loadFile(path.resolve(__dirname,'../ui/index.html'));
