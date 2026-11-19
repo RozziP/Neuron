@@ -14,6 +14,7 @@
     "smoke": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-native.ps1 && electron . --smoke-test",
     "smoke:dpi": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-native.ps1 && electron . --dpi-smoke-test",
     "smoke:workspaces": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-native.ps1 && electron . --workspace-smoke-test",
+    "smoke:onboard": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-native.ps1 && electron . --onboard-smoke-test",
     "pack": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-native.ps1 && electron-packager . Neuron --platform=win32 --arch=x64 --out=dist --overwrite --asar.unpack=\"**/*.{node,exe,ps1}\" --ignore=\"^/(\\.tools|test|artifacts|dist|docs|worker)\""
   },
   "build": {
@@ -34,6 +35,7 @@
       "scripts/redragon-smoke.cjs",
       "scripts/workspace-smoke.cjs",
       "scripts/shutdown-smoke.cjs",
+      "scripts/onboard-smoke.cjs",
       "README.md",
       "THIRD_PARTY.md",
       "package.json"

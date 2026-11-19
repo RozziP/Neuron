@@ -27,15 +27,15 @@ class UpdateChecker {
     this.fetchRelease = fetchRelease;
     this.onChange = onChange;
     this.install = install; this.directory = directory; this.download = download;
-    this.state = { currentVersion, checking: false, checkedAt: null, release: null, error: '', installError: startupError, canInstall, phase: 'idle', progress: 0 };
-    this.installPending = null; this.abort = null;
+    this.state = { currentVersion, checking: false, checkedAt: null, release: null, error: '', installError: startupError, canInstall, phase: 'idle', progress: 0, received: 0, total: 0 };
+    this.installPending = null; this.downloadPending = null; this.downloaded = null; this.abort = null;
     this.pending = null;
     this.timer = null;
   }
   snapshot() { return structuredClone(this.state); }
   publish() { this.onChange(this.snapshot()); }
   check() {
-    if (this.installPending) return Promise.resolve(this.snapshot());
+    if (this.downloadPending || this.installPending || this.downloaded) return Promise.resolve(this.snapshot());
     if (this.pending) return this.pending;
     // Defer the request so simultaneous startup and manual checks share one promise.
     this.pending = Promise.resolve().then(async () => {
@@ -77,10 +77,17 @@ class UpdateChecker {
     this.timer = setInterval(() => void this.check(), CHECK_INTERVAL);
     this.timer.unref?.();
   }
-  stop() { clearInterval(this.timer); this.timer = null; this.abort?.abort(); }
-  installUpdate() {
-    if (this.installPending) return this.installPending;
-    this.installPending = Promise.resolve().then(async () => {
+  stop() {
+    clearInterval(this.timer); this.timer = null; this.abort?.abort();
+    if (this.state.phase === 'ready') {
+      void this.downloaded?.discard?.(); this.downloaded = null; this.state.phase = 'idle';
+    }
+  }
+  cancelDownload() { this.abort?.abort(); }
+  downloadUpdate() {
+    if (this.downloadPending) return this.downloadPending;
+    if (this.downloaded || this.installPending) return Promise.resolve(this.snapshot());
+    this.downloadPending = Promise.resolve().then(async () => {
       if (this.pending) await this.pending;
       const release = structuredClone(this.state.release);
       if (!release) throw new Error('No newer release is available. Check for updates first.');
@@ -88,23 +95,39 @@ class UpdateChecker {
       if (!release.installer) throw new Error('This release does not contain a verified Windows installer. Try checking for updates later.');
       this.abort = new AbortController();
       const signal = AbortSignal.any([this.abort.signal, AbortSignal.timeout(10 * 60 * 1000)]);
-      this.state.phase = 'downloading'; this.state.progress = 0; this.state.error = ''; this.state.installError = ''; this.publish();
-      const downloaded = await this.download(release.installer, this.directory, progress => {
-        this.state.progress = progress; this.publish();
+      this.state.phase = 'downloading'; this.state.progress = 0; this.state.received = 0; this.state.total = release.installer.size;
+      this.state.error = ''; this.state.installError = ''; this.publish();
+      const downloaded = await this.download(release.installer, this.directory, (progress, details) => {
+        this.state.progress = progress;
+        this.state.received = details?.received ?? Math.floor(this.state.total * progress / 100);
+        this.publish();
       }, { signal });
-      try {
-        signal.throwIfAborted();
-        this.state.phase = 'installing'; this.publish();
-        const { discard, ...installer } = downloaded;
-        await this.install({ ...installer, version: release.version });
-      } catch (error) { await downloaded.discard?.(); throw error; }
+      if (signal.aborted) { await downloaded.discard?.(); signal.throwIfAborted(); }
+      this.downloaded = { ...downloaded, version: release.version };
+      this.state.phase = 'ready'; this.state.progress = 100; this.state.error = ''; this.publish();
       return this.snapshot();
     }).catch(error => {
       this.state.phase = 'idle';
-      this.state.error = error.name === 'TimeoutError' || error.name === 'AbortError'
-        ? 'The update was interrupted. Try again.' : error.message;
+      this.state.error = error.name === 'TimeoutError' ? 'The update download timed out. Check your connection and try again.'
+        : error.name === 'AbortError' ? 'Update download canceled. You can try again.' : error.message;
       this.publish(); throw new Error(this.state.error);
-    }).finally(() => { this.installPending = null; this.abort = null; });
+    }).finally(() => { this.downloadPending = null; this.abort = null; });
+    return this.downloadPending;
+  }
+  installUpdate() {
+    if (this.installPending) return this.installPending;
+    this.installPending = Promise.resolve().then(async () => {
+      if (this.state.phase !== 'ready' || !this.downloaded) throw new Error('Download the update before restarting.');
+      const { discard, ...installer } = this.downloaded;
+      this.state.phase = 'installing'; this.state.error = ''; this.publish();
+      try { await this.install(installer); }
+      catch (error) {
+        await discard?.(); this.state.phase = 'idle'; throw error;
+      } finally { this.downloaded = null; }
+      return this.snapshot();
+    }).catch(error => {
+      this.state.error = error.message; this.publish(); throw error;
+    }).finally(() => { this.installPending = null; });
     return this.installPending;
   }
 }

@@ -55,6 +55,15 @@ function updateHeader() {
   $('#profile-select').disabled = busy || state.applying;
   $('#apply').disabled = busy || state.applying || !available;
   $('#apply').innerHTML = busy || state.applying ? 'Working…' : 'Save & apply to mouse <span>↗</span>';
+  const onboardVisible = draft.model === 0x0067 && !['macros','dpi'].includes(page);
+  const hasMacros = [...draft.bindings,...Object.values(draft.topBindings)].some(b=>b.type==='macro');
+  $('#save-onboard').hidden = !onboardVisible;
+  $('#save-onboard').disabled = busy || state.applying || !available || hasMacros;
+  $('#onboard-help').hidden = !onboardVisible;
+  $('#onboard-help').textContent = hasMacros
+    ? 'Replace macro assignments to save onboard. Macros need Neuron running.'
+    : state.onboard ? `Saved onboard: ${state.onboard.name}. These bindings return when Neuron quits. Save onboard again to replace them.`
+    : 'Save onboard keeps these bindings when Neuron quits. Game switching still needs Neuron running.';
   const activeProfile = state.active && state.profiles.find(p => p.id === state.active.profileId);
   $('#runtime-status').textContent = activeProfile ? `${activeProfile.name} is running${state.auto ? ' · Auto-switch on' : ''} · Close to keep in tray` : 'Profiles saved on this computer · No profile applied';
   const notice = $('#notice');
@@ -113,7 +122,7 @@ function renderDevices() {
   bindMouseSelection();
   $('#scan-devices').onclick = () => act(async () => { acceptState(await api.scan()); readback = null; render(); toast(`${state.devices.length} mouse/receiver device(s) found.`); });
   $('#inspect-device').onclick = () => act(async () => { busy = true; render(); try { readback = await api.inspect(deviceId, draft.plate); toast('Current mappings read from your mouse.'); } finally { busy = false; render(); } });
-  $('#restore-device').onclick = () => act(async () => { if (!(await confirmAction('Restore original mouse settings?', 'Restore the original button mappings and any DPI backed up before Neuron changed them. This also stops automatic profile switching.', 'Restore original'))) return; busy = true; render(); try { await api.restore(deviceId); readback = null; } finally { busy = false; render(); } });
+  $('#restore-device').onclick = () => act(async () => { if (!(await confirmAction('Restore original mouse settings?', 'Restore the original button mappings and any DPI backed up before Neuron changed them. This clears saved onboard bindings. Game profiles can still apply while Neuron is running.', 'Restore original'))) return; busy = true; render(); try { await api.restore(deviceId); readback = null; } finally { busy = false; render(); } });
 }
 function render() {
   renderMouseSidebar();
@@ -190,6 +199,12 @@ document.addEventListener('keydown', event => {
 window.addEventListener('blur', () => { if (recording) { recording = false; renderMacros(); toast('Recording stopped when Neuron lost focus.'); } });
 $('#save-mapping').onclick = () => act(save);
 $('#profile-select').onchange = e => act(() => selectProfile(e.target.value));
+$('#save-onboard').onclick = () => act(async () => {
+  if (!currentDevice()) throw new Error('Connect the matching mouse first.');
+  recording = false; busy = true; updateHeader();
+  try { await api.saveOnboard(deviceId, draft); draft = structuredClone(state.profiles.find(p => p.id === draft.id)); dirty = false; }
+  finally { busy = false; render(); }
+});
 $('#apply').onclick = () => act(async () => {
   if (!currentDevice()) throw new Error('Connect the matching mouse first.');
   recording = false; busy = true; updateHeader();

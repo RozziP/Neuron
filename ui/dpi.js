@@ -27,13 +27,14 @@ function renderDpi() {
   }
   const value = dpiValues.get(device?.id) || { x: limits.min, y: limits.min };
   const reading = dpiReadback.get(device?.id);
-  const axis = (id, label) => `<div class="dpi-axis"><div class="dpi-axis-heading"><label for="dpi-${id}">${label}</label><div class="dpi-number"><input id="dpi-${id}" type="number" min="${limits.min}" max="${limits.max}" step="1" value="${value[id]}" aria-label="${label} DPI"><span>DPI</span></div></div><input id="dpi-${id}-slider" type="range" min="${limits.min}" max="${limits.max}" step="50" value="${value[id]}" aria-label="${label} DPI slider"><div class="dpi-scale"><span>${limits.min.toLocaleString()}</span><span>${limits.max.toLocaleString()}</span></div></div>`;
+  const axis = (id, label) => `<div class="dpi-axis"><div class="dpi-axis-heading"><label for="dpi-${id}">${label}</label><div class="dpi-number"><input id="dpi-${id}" type="number" min="${limits.min}" max="${limits.max}" step="${limits.step || 1}" value="${value[id]}" aria-label="${label} DPI"><span>DPI</span></div></div><input id="dpi-${id}-slider" type="range" min="${limits.min}" max="${limits.max}" step="50" value="${value[id]}" aria-label="${label} DPI slider"><div class="dpi-scale"><span>${limits.min.toLocaleString()}</span><span>${limits.max.toLocaleString()}</span></div></div>`;
   $('#content').innerHTML = `<div class="dpi-layout">
     <section class="card">
       <div class="card-head"><h2>Mouse sensitivity</h2><button class="button primary" id="apply-dpi">Apply DPI</button></div>
       <div class="dpi-editor">
         <p class="help">${esc(state.selectedMouse?.name || 'Selected mouse')}</p>
         ${!device ? '<p class="help">Connect this mouse to read and adjust DPI.</p>' : !reading ? '<p class="help">Read DPI to load the current sensitivity before making changes.</p>' : '<p class="help">Changes apply to the current sensitivity. Button profiles do not change DPI.</p>'}
+        ${limits.activeStage ? `<p class="help">${reading ? `Editing onboard DPI stage ${reading.stage+1}. ` : ''}Changes are saved to the active stage in steps of 50 DPI. Other stages stay unchanged. After using the mouse’s DPI or profile buttons, click Read DPI again. Close Redragon’s configuration software before applying.</p>` : ''}
         <fieldset class="dpi-controls" ${reading ? '' : 'hidden'}>
           <legend class="dpi-sr-only">Mouse sensitivity</legend>
           <label class="dpi-link"><input id="dpi-linked" type="checkbox" ${value.x === value.y ? 'checked' : ''}> Use the same DPI for both axes</label>
@@ -67,6 +68,7 @@ function renderDpi() {
     if (!dpiLimits() || !dpiReadback.has(target?.id)) throw new Error('Read DPI from a supported mouse first.');
     if (![value.x,value.y].every(n=>Number.isInteger(n) && n>=limits.min && n<=limits.max))
       throw new Error(`DPI must be a whole number from ${limits.min.toLocaleString()} to ${limits.max.toLocaleString()} for each axis.`);
+    if (limits.step && [value.x,value.y].some(n=>(n-limits.min)%limits.step!==0)) throw new Error(`DPI must use increments of ${limits.step}.`);
     busy = true; updateHeader();
     try {
       const applied = await api.applyDpi(target.id, value);

@@ -1,12 +1,17 @@
 // M990-WL, CID 23 / MID 48. See docs/hardware.md for captures and sources.
 const hid = require('node-hid');
+const dpi = require('./redragon-dpi.cjs');
 const MODEL = 0xf55d;
 const DRIVER = {id:'redragon-m990-wl-experimental', plates:[16], validation:'hardware-readback', top:{}};
 const sum = bytes => bytes.reduce((a,b) => a+b,0) & 255;
 function packet(command, address=0, data=[]) {
   if (![3,4,7,8,14,15,16].includes(command) || !Number.isInteger(address) || address<0 || address>65535 ||
       !Array.isArray(data) || data.length>10 || data.some(b=>!Number.isInteger(b)||b<0||b>255)) throw new Error('Invalid Redragon command.');
-  if (command===7 && !((address>=0x60 && address+data.length<=0xa0) || (address>=0x100 && address+data.length<=0x300))) throw new Error('Redragon write outside the mapping area.');
+  if (command===7) {
+    const stage=address>=0x0c && address<0x2c && (address-0x0c)%4===0 && data.length===4;
+    if(stage) dpi.decode(data);
+    else if(!((address>=0x60 && address+data.length<=0xa0) || (address>=0x100 && address+data.length<=0x300))) throw new Error('Redragon write outside the mapping or DPI stage area.');
+  }
   if (command===15 && (address!==0 || data.length!==1 || ![0,1].includes(data[0]))) throw new Error('Invalid Redragon profile reload.');
   const p=Buffer.alloc(17); p[0]=8; p[1]=command; p.writeUInt16BE(address,3); p[5]=data.length; p.set(data,6); p[16]=(85-sum(p))&255; return p;
 }

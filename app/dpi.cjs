@@ -2,6 +2,8 @@ const { packet } = require('./protocol.cjs');
 const MIN_DPI = 100, MAX_DPI = 16000;
 const storedDpiModels = new Map([[0x008d,20000],[0x008f,20000],[0x0090,20000],[0x0096,18000],[0x00b4,30000]]);
 function dpiCapabilities(device) {
+  if (device?.vendorId === 0x3554 && [0xf55d,0xf55e].includes(device.productId) && device.modelId === 0xf55d && device.modelVerified)
+    return { min: 50, max: 26000, step: 50, activeStage: true };
   if (!device || (device.vendorId !== undefined && device.vendorId !== 0x1532)) return null;
   if (device.productId === 0x0067 && !device.connection) return { min: MIN_DPI, max: MAX_DPI };
   if (storedDpiModels.has(device.productId)) return { min: MIN_DPI, max: storedDpiModels.get(device.productId) };
@@ -16,6 +18,8 @@ function validateDpi(dpi, limits = { min: MIN_DPI, max: MAX_DPI }) {
   if (!dpi || typeof dpi !== 'object' || Array.isArray(dpi) ||
       ![dpi.x, dpi.y].every(value => Number.isInteger(value) && value >= limits.min && value <= limits.max))
     throw new Error(`DPI must be a whole number from ${limits.min.toLocaleString('en-US')} to ${limits.max.toLocaleString('en-US')} for each axis.`);
+  if (limits.step && [dpi.x,dpi.y].some(value => (value-limits.min)%limits.step !== 0))
+    throw new Error(`DPI must use increments of ${limits.step}.`);
   return { x: dpi.x, y: dpi.y };
 }
 // Current sensitivity: class 04, GET 85 / SET 05, big-endian XY.

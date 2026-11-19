@@ -50,3 +50,23 @@ test('interrupted, oversized, truncated, tampered and redirected downloads never
     assert.deepEqual(await fs.readdir(root),[]);
   }
 });
+
+test('stalled connection and body abort promptly and clean partial files', async t => {
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'neuron-download-stall-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));
+  for (const bodyStarted of [false,true]) {
+    const progress=[];
+    await assert.rejects(downloadInstaller(installerAsset(release,'0.2.0'),root,(p,detail)=>progress.push(detail),{
+      stallTimeoutMs:20,
+      fetchDownload:async(_url,{signal})=> {
+        if (!bodyStarted) return new Promise((_resolve,reject)=>signal.addEventListener('abort',()=>reject(signal.reason),{once:true}));
+        return new Response(new ReadableStream({start(controller) {
+          controller.enqueue(bytes.subarray(0,4));
+          signal.addEventListener('abort',()=>controller.error(signal.reason),{once:true});
+        }}));
+      }
+    }), {name:'TimeoutError'});
+    assert.equal(progress[0].received,0);
+    if(bodyStarted)assert.equal(progress.at(-1).received,4);
+    assert.deepEqual(await fs.readdir(root),[]);
+  }
+});

@@ -50,7 +50,7 @@ function updateEmptyHeader() {
   $('#page-title').innerHTML=`${esc(pages[page][0])}<span>.</span>`;$('#breadcrumb').textContent=pages[page][0];
   $('#page-subtitle').hidden=true;$('#eyebrow').hidden=true;$('.head-actions').hidden=true;
   $('#profile-select').replaceChildren();$('#macro-count').textContent='0';
-  $('#click-warning').hidden=true;$('#notice').hidden=true;$('#runtime-status').textContent='No profiles for this mouse yet';
+  $('#onboard-help').hidden=true;$('#save-onboard').hidden=true;$('#click-warning').hidden=true;$('#notice').hidden=true;$('#runtime-status').textContent='No profiles for this mouse yet';
   document.querySelectorAll('nav [data-nav]').forEach(b=>b.classList.toggle('active',b.dataset.nav===page));
 }
 function renderEmptyWorkspace() {

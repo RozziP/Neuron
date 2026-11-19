@@ -8,7 +8,7 @@ const { newProfile, validateProfile } = require('./store.cjs');
 const { MouseWorkspaces } = require('./mouse-workspaces.cjs');
 const { Hardware } = require('./hardware.cjs');
 const { BatteryMonitor } = require('./battery.cjs');
-const { trayState, trayPixels } = require('./tray.cjs');
+const { trayState, trayImage } = require('./tray.cjs');
 const { catalog } = require('./catalog.cjs');
 const { MacroPlayer } = require('./macros.cjs');
 const { createWindowOpener } = require('./window.cjs');
@@ -25,7 +25,8 @@ const dpiSmoke = process.argv.includes('--dpi-smoke-test');
 const redragonSmoke = process.argv.includes('--redragon-smoke-test');
 const workspaceSmoke = process.argv.includes('--workspace-smoke-test');
 const shutdownSmoke = process.argv.includes('--shutdown-smoke-test');
-const smoke = shutdownSmoke || workspaceSmoke || dpiSmoke || redragonSmoke || process.argv.includes('--smoke-test');
+const onboardSmoke = process.argv.includes('--onboard-smoke-test');
+const smoke = onboardSmoke || shutdownSmoke || workspaceSmoke || dpiSmoke || redragonSmoke || process.argv.includes('--smoke-test');
 if (smoke) {
   const root = process.env.NEURON_SMOKE_DIR || (app.isPackaged ? path.join(app.getPath('temp'), 'neuron-smoke') : path.join(__dirname, '../artifacts'));
   app.setPath('userData', path.join(root, `smoke-data-${Date.now()}`));
@@ -60,14 +61,14 @@ async function createMainWindow() {
   return created;
 }
 function notify(message) { if (window && !window.isDestroyed()) window.webContents.send('notice', message); }
-function state() { return { preferredMouseModel: workspaces.selected?.model, selectedMouse: workspaces.selected, mouseWorkspaces: workspaces.summaries(devices), selectedDeviceId: workspaces.device(devices)?.id || null, profiles: store?.profiles || [], macros: store?.macros || [], devices: devices.map(({ paths, ...d }) => d), hardwareReports: reporter?.summaries() || [], catalog, topControls, mouseActions, active: active && { profileId: active.profile.id, deviceId: active.deviceId, profile: active.profile }, applying:applying || selectingMouse, auto, error: lastError || store?.warning || '' }; }
+function state() { return { onboard: hardware?.onboardSummary(workspaces.device(devices)) || null, preferredMouseModel: workspaces.selected?.model, selectedMouse: workspaces.selected, mouseWorkspaces: workspaces.summaries(devices), selectedDeviceId: workspaces.device(devices)?.id || null, profiles: store?.profiles || [], macros: store?.macros || [], devices: devices.map(({ paths, ...d }) => d), hardwareReports: reporter?.summaries() || [], catalog, topControls, mouseActions, active: active && { profileId: active.profile.id, deviceId: active.deviceId, profile: active.profile }, applying:applying || selectingMouse, auto, error: lastError || store?.warning || '' }; }
 function changed() { updateTray(); if (window && !window.isDestroyed()) window.webContents.send('state', state()); }
 function updateTray() {
   if (!tray || tray.isDestroyed()) return;
   const status = trayState(devices, batteries, active?.deviceId), key = JSON.stringify(status);
   if (key === lastTrayState) return;
   lastTrayState = key;
-  tray.setImage(nativeImage.createFromBitmap(trayPixels(status.level, status.charging), { width: 32, height: 32 }));
+  tray.setImage(trayImage(nativeImage, status.level, status.charging));
   tray.setToolTip(status.tooltip.slice(0, 127));
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: 'Open Neuron', click: openWindow },
@@ -128,7 +129,7 @@ async function selectWorkspace(key) {
   } finally {selectingMouse=false;changed();}
   return state();
 }
-async function applyProfile(deviceId, input) {
+async function applyProfile(deviceId, input, { onboard = false } = {}) {
   if (applying) throw new Error('Wait for the current device operation to finish.');
   workspaces.assertDevice(deviceId,devices); workspaces.assertProfile(input);
   const profile = validateProfile(input);
@@ -137,7 +138,7 @@ async function applyProfile(deviceId, input) {
   let reservation;
   try {
     reservation = reserveShortcuts(profile);
-    const result = await hardware.apply(deviceId, profile);
+    const result = await (onboard ? hardware.saveOnboard(deviceId, profile) : hardware.apply(deviceId, profile));
     active = { deviceId, profile: structuredClone(profile) };
     if (!profile.executable) fallbackId = profile.id;
     for (const key of [...registered]) if (!reservation.needed.has(key)) { globalShortcut.unregister(key); registered.delete(key); }
@@ -147,7 +148,7 @@ async function applyProfile(deviceId, input) {
     lastError = error.message; throw error;
   } finally { applying = false; changed(); }
 }
-async function restoreDevice(id, options) {
+async function restoreDevice(id, options = { useOnboard: true }) {
   if (applying) throw new Error('Wait for the current device operation to finish.');
   applying = true; player.stop(); changed();
   try {
@@ -230,6 +231,8 @@ app.whenReady().then(async () => {
     onChange: status => { if (window && !window.isDestroyed()) window.webContents.send('updates', status); } });
   handle('updates:get', () => updates.snapshot());
   handle('updates:check', () => updates.check());
+  handle('updates:download', () => updates.downloadUpdate());
+  handle('updates:cancel', () => updates.cancelDownload());
   handle('updates:install', () => updates.installUpdate());
   handle('state:get', () => state());
   handle('workspace:select', key => selectWorkspace(key));
@@ -319,10 +322,17 @@ app.whenReady().then(async () => {
     workspaces.assertDevice(id,devices);workspaces.assertProfile(input);
     const profile = store.save(input); changed(); return applyProfile(id, profile);
   });
+  handle('profile:onboard', (id, input) => {
+    if (applying) throw new Error('Wait for the current device operation to finish.');
+    workspaces.assertDevice(id,devices);workspaces.assertProfile(input);
+    const profile = validateProfile(input);
+    if (profile.model !== 0x0067 || macroTriggers(profile).length) throw new Error('Save onboard requires a Naga Trinity profile without macro assignments.');
+    const saved = store.save(profile); changed(); return applyProfile(id, saved, { onboard: true });
+  });
   handle('device:restore', id => {workspaces.assertDevice(id,devices);return restoreDevice(id, { restoreDpi: true });});
   handle('macro:stop', () => player.stop());
   handle('window:minimize', () => window.minimize());
-  tray = new Tray(nativeImage.createFromBitmap(trayPixels(null), { width: 32, height: 32 }));
+  tray = new Tray(trayImage(nativeImage, null));
   updateTray();
   tray.on('double-click', openWindow);
   readyToOpen = true;
@@ -340,6 +350,7 @@ app.whenReady().then(async () => {
     await require('../scripts/shutdown-smoke.cjs').run(app, hardware, bridge, () => { active = {deviceId:'shutdown-fixture', profile:store.profiles[0]}; });
     return;
   }
+  if (onboardSmoke) { await require('../scripts/onboard-smoke.cjs').run(window, app, hardware); return; }
   if (smoke) { await require(workspaceSmoke ? '../scripts/workspace-smoke.cjs' : redragonSmoke ? '../scripts/redragon-smoke.cjs' : dpiSmoke ? '../scripts/dpi-smoke.cjs' : '../scripts/smoke.cjs').run(window, app, hardware, reporter, updates); return; }
   updates.start();
   await batteries.refresh(devices); updateTray();
